@@ -1,0 +1,15 @@
+﻿src/components/features/competency/BISidebar.tsx(6,10): error TS2724: '"@/types"' has no exported member named 'BehavioralIndicatorUI'. Did you mean 'BehavioralIndicator'?
+src/components/features/dashboard/admin/competencies/AdminCompetencyLibraryTab.tsx(363,85): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyLibraryTab.tsx(363,99): error TS7006: Parameter 'bi' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(18,10): error TS2305: Module '"@/types"' has no exported member 'CompetencyFramework'.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(18,31): error TS2724: '"@/types"' has no exported member named 'CompetencyDirectory'. Did you mean 'CompetencyDictionary'?
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(114,48): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(118,56): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(132,63): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(241,63): error TS7006: Parameter 'lvl' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(241,68): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(258,58): error TS7006: Parameter 'bi' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(258,62): error TS7006: Parameter 'biIdx' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(336,52): error TS7006: Parameter 'comp' implicitly has an 'any' type.
+src/components/features/dashboard/fellow/FellowExaminationsTab.tsx(84,75): error TS2339: Property 'competency_id' does not exist on type 'Portfolio'.
+src/components/features/dashboard/fellow/FellowExaminationsTab.tsx(165,55): error TS2304: Cannot find name 'Award'.

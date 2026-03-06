@@ -1,0 +1,41 @@
+﻿src/app/onboarding/[companyid]/onboarding/[cohortid]/page.tsx(17,66): error TS2304: Cannot find name 'GroundingModule'.
+src/app/onboarding/[companyid]/onboarding/[cohortid]/page.tsx(26,43): error TS2551: Property 'getCompany' does not exist on type '{ getDashboardState(): Promise<AdminDashboardState>; getUsers(): Promise<User[]>; getCompanies(): Promise<Company[]>; ... 9 more ...; deleteGroundingItem(id: string): Promise<...>; }'. Did you mean 'getCompanies'?
+src/app/onboarding/[companyid]/onboarding/[cohortid]/page.tsx(27,43): error TS2551: Property 'getCohort' does not exist on type '{ getDashboardState(): Promise<AdminDashboardState>; getUsers(): Promise<User[]>; getCompanies(): Promise<Company[]>; ... 9 more ...; deleteGroundingItem(id: string): Promise<...>; }'. Did you mean 'getCohorts'?
+src/app/onboarding/[companyid]/page.tsx(10,5): error TS2305: Module '"@/types"' has no exported member 'GroundingLibrary'.
+src/app/onboarding/[companyid]/page.tsx(110,43): error TS2339: Property 'getGroundingLibraries' does not exist on type '{ getDashboardState(): Promise<AdminDashboardState>; getUsers(): Promise<User[]>; getCompanies(): Promise<Company[]>; ... 9 more ...; deleteGroundingItem(id: string): Promise<...>; }'.
+src/app/onboarding/[companyid]/page.tsx(113,48): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/components/features/competency/BISidebar.tsx(6,10): error TS2724: '"@/types"' has no exported member named 'BehavioralIndicatorUI'. Did you mean 'BehavioralIndicator'?
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(62,41): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(63,48): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(64,44): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(65,42): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(78,58): error TS2345: Argument of type '{ name: string; definition: string; importance: string; proficiency_levels: DictionaryProficiencyLevel[]; }' is not assignable to parameter of type 'Omit<CompetencyDictionary, "id" | "created_at" | "updated_at">'.
+  Property 'code' is missing in type '{ name: string; definition: string; importance: string; proficiency_levels: DictionaryProficiencyLevel[]; }' but required in type 'Omit<CompetencyDictionary, "id" | "created_at" | "updated_at">'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(124,45): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(125,52): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(126,48): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(127,46): error TS2353: Object literal may only specify known properties, and 'behaviors' does not exist in type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(202,63): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(282,77): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(282,111): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(290,52): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(290,67): error TS7006: Parameter 'bi' implicitly has an 'any' type.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(290,71): error TS7006: Parameter 'biIdx' implicitly has an 'any' type.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(297,85): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(308,85): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyDictionaryTab.tsx(321,81): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyLibraryTab.tsx(363,85): error TS2339: Property 'behaviors' does not exist on type 'DictionaryProficiencyLevel'.
+src/components/features/dashboard/admin/competencies/AdminCompetencyLibraryTab.tsx(363,99): error TS7006: Parameter 'bi' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(18,10): error TS2305: Module '"@/types"' has no exported member 'CompetencyFramework'.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(18,31): error TS2724: '"@/types"' has no exported member named 'CompetencyDirectory'. Did you mean 'CompetencyDictionary'?
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(114,48): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(118,56): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(132,63): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(241,63): error TS7006: Parameter 'lvl' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(241,68): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(258,58): error TS7006: Parameter 'bi' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(258,62): error TS7006: Parameter 'biIdx' implicitly has an 'any' type.
+src/components/features/dashboard/CompetencyDictionarySidebar.tsx(336,52): error TS7006: Parameter 'comp' implicitly has an 'any' type.
+src/components/features/dashboard/fellow/FellowExaminationsTab.tsx(84,75): error TS2339: Property 'competency_id' does not exist on type 'Portfolio'.
+src/components/features/dashboard/fellow/FellowExaminationsTab.tsx(165,55): error TS2304: Cannot find name 'Award'.
+src/components/features/dashboard/fellow/FellowGroundingModules.tsx(34,24): error TS2339: Property 'groundingLibrary' does not exist on type 'FellowDashboardState'.
