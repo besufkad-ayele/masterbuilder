@@ -197,7 +197,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                   onClick={() => setIsStarted(true)}
                   className="w-full h-16 bg-[#1B4332] text-white text-xs font-black uppercase tracking-[0.2em] hover:bg-[#C5A059] transition-all duration-500 rounded-2xl shadow-xl flex items-center justify-center gap-3 group/btn"
                 >
-                  {hasAssessmentScore ? 'Review Module' : 'Start Module'} <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                  {hasAssessmentScore ? 'Review Module' : 'Start Modules'} <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
                 </Button>
               </div>
             </div>
