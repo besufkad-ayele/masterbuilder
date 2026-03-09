@@ -6,6 +6,7 @@ import ProfileManagementTab from "@/components/features/dashboard/admin/ProfileM
 import AdminProfileTab from "@/components/features/dashboard/admin/AdminProfileTab";
 import AdminGroundingModulesTab from "@/components/features/dashboard/admin/AdminGroundingModulesTab";
 import AdminExaminationsTab from "@/components/features/dashboard/admin/AdminExaminationsTab";
+import AdminNotificationsTab from "@/components/features/dashboard/admin/AdminNotificationsTab";
 import { AdminTabKey, getAdminTab } from "@/components/features/dashboard/admin/adminTabs";
 import { JSX } from "react";
 
@@ -24,6 +25,7 @@ export default function AdminTabContent({ tab }: AdminTabContentProps) {
     grounding: <AdminGroundingModulesTab />,
     cohorts: <AdminCohortsTab />,
     examinations: <AdminExaminationsTab />,
+    notifications: <AdminNotificationsTab />,
     profile: <AdminProfileTab />,
   };
 

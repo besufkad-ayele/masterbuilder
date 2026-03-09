@@ -398,7 +398,7 @@ export const CompetencyDetailView: React.FC<CompetencyDetailViewProps> = ({ comp
                                             <VideoSection
                                                 videos={((currentPhaseContent as any)?.videos || []).map((v: any) => ({
                                                     url: v.source || '',
-                                                    title: v.title || 'Untitled Video'
+                                                    title: v.title || '  '
                                                 }))}
                                                 getYouTubeEmbedUrl={getYouTubeEmbedUrl}
                                                 onComplete={() => handleSubTabComplete('video')}
@@ -410,7 +410,7 @@ export const CompetencyDetailView: React.FC<CompetencyDetailViewProps> = ({ comp
                                             <ArticleSection
                                                 articles={((currentPhaseContent as any)?.articles || []).map((a: any) => ({
                                                     url: a.source || '',
-                                                    title: a.title || 'Untitled Article',
+                                                    title: a.title || '  ',
                                                     image: a.cover_pic_link || ''
                                                 }))}
                                                 onComplete={() => handleSubTabComplete('article')}

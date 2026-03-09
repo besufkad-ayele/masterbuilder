@@ -68,7 +68,7 @@ const Header = () => {
             asChild
             className="bg-primary text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-opacity-90 transition-all shadow-lg hover:shadow-xl hover:scale-105"
           >
-            <Link href="/get-started">Start Training</Link>
+            <Link href="#">Contact Us</Link>
           </Button>
         </div>
 

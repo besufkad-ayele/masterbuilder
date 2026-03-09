@@ -6,8 +6,9 @@ import { companyService } from '@/services/companyService';
 import { AdminManagementService } from '@/services/AdminManagementService';
 import { groundingService } from '@/services/groundingService';
 import { competencyService } from '@/services/competencyService';
-import { AdminDashboardState, FellowDashboardState, User, CompetencyLibrary } from '@/types';
+import { AdminDashboardState, FellowDashboardState, User, CompetencyLibrary, LDPNotification } from '@/types';
 import { ExamService } from '@/services/ExamService';
+import { firebaseService } from '@/services/firebaseService';
 
 export function useAdminDashboard() {
   const [data, setData] = useState<AdminDashboardState | null>(null);
@@ -34,13 +35,14 @@ export function useAdminDashboard() {
         }
       }
 
-      const [fellows, cohorts, facilitators, companies, competencies, modules] = await Promise.all([
+      const [fellows, cohorts, facilitators, companies, competencies, modules, notifications] = await Promise.all([
         FellowService.getAllFellows(),
         CohortService.getAllCohorts(),
         FacilitatorService.getAllFacilitators(),
         companyService.getAll(),
         CohortService.getMasterCompetencies(),
-        groundingService.getModules()
+        groundingService.getModules(),
+        firebaseService.notifications.getNotifications('admins', false)
       ]);
 
       const newData = {
@@ -52,7 +54,8 @@ export function useAdminDashboard() {
         users: [], // To be implemented or fetched via AdminManagementService if needed
         results: [],
         evaluations: [],
-        groundingModules: modules
+        groundingModules: modules,
+        notifications
       } as AdminDashboardState;
 
       setData(newData);
@@ -111,7 +114,7 @@ export function useFellowDashboard(userId?: string) {
 
       const userData = userDoc.exists() ? { id: userId, ...userDoc.data() } as User : { id: userId, email: profile.email, name: profile.full_name, role: 'FELLOW' } as User;
 
-      const [company, cohort, allCompetencies, waves, portfolios, progress, waveComps, libraryComps, groundingResults, examAttempts, behavioralIndicators] = await Promise.all([
+      const [company, cohort, allCompetencies, waves, portfolios, progress, waveComps, libraryComps, groundingResults, examAttempts, behavioralIndicators, notifications] = await Promise.all([
         companyService.getById(profile.company_id),
         profile.cohort_id ? CohortService.getCohortById(profile.cohort_id) : Promise.resolve(null),
         CohortService.getMasterCompetencies(),
@@ -122,7 +125,8 @@ export function useFellowDashboard(userId?: string) {
         companyService.getById(profile.company_id).then(c => c ? competencyService.getLibraryByCompany(profile.company_id) : []),
         FellowProgressService.getGroundingResultsByFellow(userId),
         ExamService.getAttemptsByUser(userId),
-        FellowProgressService.getAllBehavioralIndicators()
+        FellowProgressService.getAllBehavioralIndicators(),
+        firebaseService.notifications.getNotifications(profile.cohort_id || 'fellows')
       ]);
 
       const exams = profile.cohort_id ? await ExamService.getExamsByCohort(profile.cohort_id) : [];
@@ -162,7 +166,8 @@ export function useFellowDashboard(userId?: string) {
         groundingResults: groundingResults,
         examAttempts: examAttempts,
         exams: exams,
-        behavioralIndicators: behavioralIndicators
+        behavioralIndicators: behavioralIndicators,
+        notifications: notifications
       } as any); // Use any to avoid strict type check for now until types are updated
       setError(null);
     } catch (err) {

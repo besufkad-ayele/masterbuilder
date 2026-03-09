@@ -35,10 +35,11 @@ import {
     BehavioralIndicator as DBBehavioralIndicator,
     Phase as DBPhase,
     CompetencyDictionary,
-    CompetencyLibrary,
+    ContentItem,
     GroundingModule,
     PhaseType,
-    PortfolioStatus
+    PortfolioStatus,
+    LDPNotification
 } from '@/types';
 
 import { groundingService } from './groundingService';
@@ -107,7 +108,8 @@ export const firebaseService = {
                 competencies,
                 results,
                 evaluations,
-                groundingModules: await groundingService.getModules()
+                groundingModules: await groundingService.getModules(),
+                notifications: await firebaseService.notifications.getNotifications('admins')
             };
         },
 
@@ -208,6 +210,7 @@ export const firebaseService = {
             const behavioralIndicators = await FellowProgressService.getAllBehavioralIndicators();
             const gmds = await groundingService.getModulesByCompany(company.id);
             const groundingModule = gmds[0] || null;
+            const notifications = await firebaseService.notifications.getNotifications(cohort.id || 'fellows');
 
             return {
                 user,
@@ -224,7 +227,8 @@ export const firebaseService = {
                 groundingResults,
                 examAttempts,
                 exams,
-                behavioralIndicators
+                behavioralIndicators,
+                notifications
             };
         },
 
@@ -497,6 +501,53 @@ export const firebaseService = {
                     updated_at: now
                 });
             }
+        }
+    },
+    notifications: {
+        async getNotifications(audience?: string, onlyActive: boolean = true): Promise<LDPNotification[]> {
+            let q;
+            if (onlyActive) {
+                q = query(collection(db, 'notifications'), where('is_active', '==', true), orderBy('created_at', 'desc'));
+            } else {
+                q = query(collection(db, 'notifications'), orderBy('created_at', 'desc'));
+            }
+            const snapshot = await getDocs(q);
+            let all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LDPNotification));
+
+            // Client-side safety filter for is_active
+            if (onlyActive) {
+                all = all.filter(n => n.is_active === true);
+            }
+
+            if (!audience || audience === 'all') return all;
+
+            return all.filter(n =>
+                n.target_audience === 'all' ||
+                n.target_audience === audience ||
+                (audience === 'fellows' && n.target_audience === 'fellows') ||
+                (audience === 'admins' && (n.target_audience === 'admins' || n.target_audience === 'all'))
+            );
+        },
+        async createNotification(notification: Omit<LDPNotification, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+            const docRef = doc(collection(db, 'notifications'));
+            const now = new Date().toISOString();
+            await setDoc(docRef, {
+                ...notification,
+                id: docRef.id,
+                created_at: now,
+                updated_at: now
+            });
+            return docRef.id;
+        },
+        async updateNotification(id: string, updates: Partial<LDPNotification>): Promise<void> {
+            const ref = doc(db, 'notifications', id);
+            await updateDoc(ref, {
+                ...updates,
+                updated_at: new Date().toISOString()
+            });
+        },
+        async deleteNotification(id: string): Promise<void> {
+            await deleteDoc(doc(db, 'notifications', id));
         }
     },
     auth: {

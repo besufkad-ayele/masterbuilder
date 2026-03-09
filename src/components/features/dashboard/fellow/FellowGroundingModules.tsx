@@ -167,7 +167,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                       </>
                     ) : (
                       <>
-                        <span className="font-black text-3xl font-serif">{module.structure.part_one.weight}%</span>
+                        <span className="font-black text-3xl font-serif">{module.structure.part_one.weight}</span>
                         <span className="text-[8px] font-black uppercase tracking-widest text-[#C5A059]">Weight</span>
                       </>
                     )}

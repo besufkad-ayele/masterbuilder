@@ -146,7 +146,12 @@ export default function AdminDashboardOverview() {
       stat: `${totalCompetencies} active`,
       href: "/admin?tab=competencies",
     },
-
+    {
+      title: "Notifications",
+      description: "Broadcast platform-wide updates and milestones.",
+      stat: `${data?.notifications?.length || 0} active`,
+      href: "/admin?tab=notifications",
+    },
   ];
 
   return (

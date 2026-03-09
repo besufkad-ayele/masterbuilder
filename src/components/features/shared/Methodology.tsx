@@ -60,11 +60,11 @@ const Methodology = () => {
               <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
                 {card.description}
               </p>
-              <div className={`mt-6 flex items-center gap-2 text-accent font-medium text-sm transition-all duration-300 ${
+              {/* <div className={`mt-6 flex items-center gap-2 text-accent font-medium text-sm transition-all duration-300 ${
                 hoveredCard === index ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
               }`}>
                 Learn more <ArrowRight className="h-4 w-4" />
-              </div>
+              </div> */}
             </div>
           );
         })}

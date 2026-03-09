@@ -9,6 +9,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "fellows",
         "cohorts",
         "examinations",
+        "notifications",
         "profile"
     ],
     "Super Admin": [
@@ -19,36 +20,42 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "fellows",
         "cohorts",
         "examinations",
+        "notifications",
         "profile"
     ],
     "Executive Director": [
         "dashboard",
         "companies",
         "fellows",
+        "notifications",
         "profile"
     ],
     "Profile Admin": [
         "dashboard",
         "companies",
         "fellows",
+        "notifications",
         "profile"
     ],
     "Program Coordinator": [
         "companies",
         "cohorts",
         "fellows",
+        "notifications",
         "profile"
     ],
     "Content Manager": [
         "competencies",
         "grounding",
         "examinations",
+        "notifications",
         "profile"
     ],
     "Content Admin": [
         "competencies",
         "grounding",
         "examinations",
+        "notifications",
         "profile"
     ],
     "FACILITATOR": [

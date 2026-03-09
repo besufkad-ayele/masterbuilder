@@ -1,11 +1,11 @@
 # Master Builder Platform
 
 <p align="center">
-	<img src="./public/hero.jpg" alt="Lead Life hero" width="100%" />
+	<img src="./public/hero.jpg" alt="Master Builder hero" width="100%" />
 </p>
 
 <p align="center">
-	Leadership development platform for Admins, Facilitators, and Fellows.
+	Master Builder platform for Admins, Facilitators, and Fellows.
 </p>
 
 <p align="center">

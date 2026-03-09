@@ -150,7 +150,7 @@ const FellowSidebar: React.FC<FellowSidebarProps> = ({ fellowId }) => {
         </div>
 
         {/* Portfolio & Performance */}
-        <div className="pt-4 border-t border-[#E8E4D8]/50 space-y-1">
+        {/* <div className="pt-4 border-t border-[#E8E4D8]/50 space-y-1">
           <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B9B7E]">Leadership Portfolio</p>
           <NavItem
             icon={FileText}
@@ -164,24 +164,24 @@ const FellowSidebar: React.FC<FellowSidebarProps> = ({ fellowId }) => {
             tab="exams"
             isActive={currentTab === 'exams'}
           />
-        </div>
+        </div> */}
       </div>
 
       {/* Footer Settings */}
       <div className="p-4 border-t border-[#E8E4D8] bg-white/20">
         <div className="space-y-1">
-          <NavItem
+          {/* <NavItem
             icon={Settings}
             title="Workspace Settings"
             tab="settings"
             isActive={currentTab === 'settings'}
-          />
+          /> */}
           <button
             onClick={() => window.location.href = '/login'}
             className="flex items-center gap-3 w-full px-4 py-2 rounded-xl text-[#BC4B51] hover:bg-[#BC4B51]/5 transition-all duration-300 group"
           >
             <LogOut className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            <span className="text-sm font-medium">Exit Workspace</span>
+            <span className="text-sm font-medium">Logout</span>
           </button>
         </div>
       </div>

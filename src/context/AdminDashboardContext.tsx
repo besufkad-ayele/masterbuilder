@@ -6,6 +6,7 @@ import { CohortService } from '@/services/CohortService';
 import { FacilitatorService } from '@/services/FacilitatorService';
 import { companyService } from '@/services/companyService';
 import { groundingService } from '@/services/groundingService';
+import { firebaseService } from '@/services/firebaseService';
 import { AdminDashboardState } from '@/types';
 
 interface AdminDashboardContextType {
@@ -33,14 +34,16 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
                 facilitators,
                 companies,
                 competencies,
-                modules
+                modules,
+                notifications
             ] = await Promise.allSettled([
                 FellowService.getAllFellows(),
                 CohortService.getAllCohorts(),
                 FacilitatorService.getAllFacilitators(),
                 companyService.getAll(),
                 CohortService.getMasterCompetencies(),
-                groundingService.getModules()
+                groundingService.getModules(),
+                firebaseService.notifications.getNotifications('admins', false)
             ]);
 
             setData({
@@ -52,11 +55,12 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
                 users: [],
                 results: [],
                 evaluations: [],
-                groundingModules: modules.status === 'fulfilled' ? modules.value : []
+                groundingModules: modules.status === 'fulfilled' ? modules.value : [],
+                notifications: (notifications && notifications.status === 'fulfilled') ? notifications.value : []
             } as AdminDashboardState);
 
             // Log errors if any
-            [fellows, cohorts, facilitators, companies, competencies, modules].forEach((res, i) => {
+            [fellows, cohorts, facilitators, companies, competencies, modules, notifications].forEach((res, i) => {
                 if (res.status === 'rejected') {
                     console.error(`AdminDashboard Error index ${i}:`, res.reason);
                 }

@@ -9,7 +9,8 @@ import {
   UserCog,
   BarChart3,
   FileCheck2,
-  GraduationCap
+  GraduationCap,
+  Megaphone
 } from "lucide-react";
 
 export const ADMIN_TABS = [
@@ -61,6 +62,13 @@ export const ADMIN_TABS = [
     icon: FileText,
     href: "/admin?tab=examinations",
     description: "Manage and create competency-linked exams",
+  },
+  {
+    key: "notifications",
+    title: "Notifications",
+    icon: Megaphone,
+    href: "/admin?tab=notifications",
+    description: "Broadcast platform-wide updates",
   },
   {
     key: "profile",

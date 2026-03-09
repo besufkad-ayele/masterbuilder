@@ -351,6 +351,20 @@ export interface WaveResult {
   updated_at: string;
 }
 
+// --- Notification System ---
+export interface LDPNotification {
+  id: string;
+  title: string;
+  message: string;
+  image_url?: string;
+  type: 'info' | 'warning' | 'success' | 'urgent';
+  link?: string;
+  is_active: boolean;
+  target_audience: 'all' | 'fellows' | 'admins' | string; // string could be cohortId
+  created_at: string;
+  updated_at: string;
+}
+
 // --- Frontend Helper Types (Dashboard States) ---
 
 export interface AdminDashboardState {
@@ -363,6 +377,7 @@ export interface AdminDashboardState {
   results: WaveResult[];
   evaluations: Portfolio[];
   groundingModules: GroundingModule[];
+  notifications: LDPNotification[];
 }
 
 export interface FellowDashboardState {
@@ -381,6 +396,7 @@ export interface FellowDashboardState {
   examAttempts: any[]; // Using any[] for ExamAttempt if not exported from types
   exams: any[];        // Using any[] for Exam if not exported from types
   behavioralIndicators: BehavioralIndicator[];
+  notifications: LDPNotification[];
 }
 
 // --- Competency Dictionary & Library (New Structures) ---

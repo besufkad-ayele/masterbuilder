@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import ContactModal from './ContactModal';
+import LearningJourneyRoadmap from './LearningJourneyRoadmap';
+import NotificationScroller from './NotificationScroller';
 
 interface FellowDashboardProps {
   fellowId: string;
@@ -316,6 +318,8 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       {activeTab === 'overview' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           <div className="lg:col-span-2 space-y-12">
+            <LearningJourneyRoadmap />
+
             {fellowState.groundingModule && (
               <div className="space-y-5">
                 <div className="flex items-center justify-between px-2">
@@ -393,22 +397,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
               </Card>
             </div>
 
-            <Card className="rounded-[2.5rem] border-[#E8E4D8] overflow-hidden">
-              <CardHeader className="bg-[#1B4332]/5 border-b border-[#E8E4D8]">
-                <CardTitle className="text-lg font-serif italic">Upcoming Milestones</CardTitle>
-              </CardHeader>
-              <CardContent className="p-8 space-y-4">
-                {upcomingDeadlines.map((d, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 rounded-2xl border border-[#E8E4D8] bg-white">
-                    <div className={cn("size-2 rounded-full", d.urgency === 'high' ? 'bg-red-500' : 'bg-[#1B4332]')} />
-                    <div>
-                      <p className="text-sm font-bold">{d.title}</p>
-                      <p className="text-[10px] uppercase text-[#1B4332]/40">{d.date}</p>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <NotificationScroller notifications={fellowState.notifications || []} />
           </div>
         </div>
       ) : (
