@@ -1,4 +1,4 @@
-# Lead Life Platform
+# Master Builder Platform
 
 <p align="center">
 	<img src="./public/hero.jpg" alt="Lead Life hero" width="100%" />
