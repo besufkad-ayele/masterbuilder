@@ -1166,20 +1166,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                 </button>
 
                 {/* Weight info */}
-                {!isMobile && (
-                    <div className="mt-5 p-4 bg-[#1B4332] rounded-xl text-white">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Info className="w-3.5 h-3.5 text-[#C5A059]" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider">
-                                Weight
-                            </span>
-                        </div>
-                        <p className="text-lg font-bold">{partOne.weight}</p>
-                        <p className="text-[10px] text-white/40 mt-1 leading-relaxed">
-                            Contribution to overall Grounding score
-                        </p>
-                    </div>
-                )}
+               
             </div>
         );
     }
