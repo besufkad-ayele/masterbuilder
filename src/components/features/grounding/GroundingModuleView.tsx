@@ -1164,8 +1164,6 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                         )}
                     </div>
                 </button>
-
-                {/* Weight info */}
                
             </div>
         );
