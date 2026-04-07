@@ -42,13 +42,63 @@ export const FellowProgressService = {
     },
 
     async getAllBehavioralIndicators(): Promise<BehavioralIndicator[]> {
-        const s = await getDocs(collection(db, 'behavioral_indicators'));
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as BehavioralIndicator));
+        // Get standalone behavioral indicators
+        const biSnapshot = await getDocs(collection(db, 'behavioral_indicators'));
+        const standaloneBIs = biSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as BehavioralIndicator));
+
+        // Get behavioral indicators from competency library
+        const librarySnapshot = await getDocs(collection(db, 'competency_library'));
+        const libraryBIs: BehavioralIndicator[] = [];
+
+        librarySnapshot.docs.forEach(doc => {
+            const library = doc.data();
+            const libraryId = doc.id;
+            
+            if (library.competency?.behavioral_indicators) {
+                library.competency.behavioral_indicators.forEach((bi: any, index: number) => {
+                    libraryBIs.push({
+                        id: `${libraryId}_BI${index + 1}`,
+                        competency_id: libraryId,
+                        code: bi.code || `BI${index + 1}`,
+                        title: bi.description || bi.code || `Behavioral Indicator ${index + 1}`,
+                        description: bi.description || '',
+                        level: library.competency.target_level || 'Basic',
+                        created_at: library.created_at || new Date().toISOString(),
+                        updated_at: library.updated_at || new Date().toISOString()
+                    } as BehavioralIndicator);
+                });
+            }
+        });
+
+        // Combine both sources
+        return [...standaloneBIs, ...libraryBIs];
     },
 
     async getAllCompetencies(): Promise<Competency[]> {
-        const s = await getDocs(collection(db, 'competencies'));
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as Competency));
+        // Get standalone competencies
+        const compSnapshot = await getDocs(collection(db, 'competencies'));
+        const standaloneComps = compSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Competency));
+
+        // Get competencies from competency library
+        const librarySnapshot = await getDocs(collection(db, 'competency_library'));
+        const libraryComps: Competency[] = librarySnapshot.docs.map(doc => {
+            const library = doc.data();
+            return {
+                id: doc.id,
+                code: library.competency?.name?.split(' ').map((w: string) => w[0]).join('').toUpperCase() || 'COMP',
+                title: library.competency?.name || 'Competency',
+                description: library.competency?.definition || '',
+                category: library.competency_domain?.toLowerCase().includes('yourself') ? 'ly' : 
+                         library.competency_domain?.toLowerCase().includes('others') ? 'lo' : 
+                         library.competency_domain?.toLowerCase().includes('organization') ? 'lorg' : 'general',
+                level: library.competency?.target_level || 'Basic',
+                created_at: library.created_at || new Date().toISOString(),
+                updated_at: library.updated_at || new Date().toISOString()
+            } as Competency;
+        });
+
+        // Combine both sources
+        return [...standaloneComps, ...libraryComps];
     },
 
     async getWavesByCohort(cohortId: string): Promise<Wave[]> {
