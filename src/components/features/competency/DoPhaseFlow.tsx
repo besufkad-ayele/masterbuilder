@@ -50,6 +50,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]); // Using the real Portfolio type
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [hasAnyPortfolios, setHasAnyPortfolios] = useState(false);
     const [currentStar, setCurrentStar] = useState({
         situation: "",
         task: "",
@@ -68,6 +69,16 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             setLoadingPortfolios(true);
             try {
                 const allPortfolios = await firebaseService.fellow.getFellowPortfolios(userId);
+                
+                // Extract competency ID from biId (format: competencyId_BIcode)
+                const competencyId = biId.split('_')[0];
+                
+                // Check if user has ANY portfolios for THIS competency (any BI in this competency)
+                const competencyPortfolios = allPortfolios.filter(p => 
+                    p.behavioral_indicator_id?.startsWith(competencyId + '_')
+                );
+                setHasAnyPortfolios(competencyPortfolios.length > 0);
+                
                 // Filter for this specific BI
                 const relevant = allPortfolios.filter(p => p.behavioral_indicator_id === biId);
                 setPortfolios(relevant);
@@ -78,6 +89,9 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                     setSelectedPortfolioId(submitted.id);
                     setStep("submit");
                 } else if (relevant.length > 0) {
+                    setStep("create");
+                } else if (competencyPortfolios.length > 0) {
+                    // Skip self-evaluation if user has any portfolios for this competency
                     setStep("create");
                 }
             } catch (error) {
@@ -94,7 +108,8 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             !currentStar.situation ||
             !currentStar.task ||
             !currentStar.action ||
-            !currentStar.result
+            !currentStar.result ||
+            !currentStar.evidenceUrl
         )
             return;
 
@@ -174,10 +189,10 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             {/* Progress Indicator */}
             <div className="flex items-center justify-between max-w-2xl mx-auto px-4">
                 {[
-                    { id: "evaluate", label: "Self Evaluation", icon: Sparkles },
+                    ...(hasAnyPortfolios ? [] : [{ id: "evaluate", label: "Self Evaluation", icon: Sparkles }]),
                     { id: "create", label: "Archive Entry", icon: Plus },
                     { id: "submit", label: "Final Submission", icon: Award },
-                ].map((s, idx) => (
+                ].map((s, idx, arr) => (
                     <React.Fragment key={s.id}>
                         <div className="flex flex-col items-center gap-3">
                             <div
@@ -201,7 +216,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                 {s.label}
                             </span>
                         </div>
-                        {idx < 2 && (
+                        {idx < arr.length - 1 && (
                             <div
                                 className={cn(
                                     "h-px flex-1 mx-4",
@@ -219,14 +234,46 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                 {step === "evaluate" && (
                     <div className="space-y-8 max-w-3xl mx-auto">
                         <div className="bg-[#1B4332] text-white p-10 rounded-[40px] relative overflow-hidden shadow-2xl">
-                            <div className="relative z-10 space-y-4">
+                            <div className="relative z-10 space-y-6">
                                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[#C5A059] text-[10px] font-bold tracking-widest uppercase mb-2">
-                                    <Target className="w-3 h-3" /> Step 1: Self-Reflection
+                                    <Target className="w-3 h-3" /> LDI PORTFOLIO GUIDELINES
                                 </div>
-                                <h3 className="text-3xl font-serif italic">{instruction}</h3>
-                                <p className="text-white/70 leading-relaxed text-lg">
-                                    {description || "Before you document your experiences, take a moment to evaluate your current proficiency in this behavior."}
-                                </p>
+                                <h3 className="text-2xl font-bold text-white mb-4">Do Phase</h3>
+                                <div className="text-white/90 leading-relaxed space-y-4 text-sm font-normal">
+                                    <p className="text-sm leading-relaxed">
+                                        Every entry in your portfolio must follow the structured STAR approach to ensure your leadership actions are clearly documented and measurable:
+                                    </p>
+                                    
+                                    <div className="space-y-3 pl-4 border-l-2 border-white/20">
+                                        <div>
+                                            <p className="text-sm leading-relaxed">
+                                                <strong className="font-bold text-white">S – Situation:</strong> Describe the specific workplace context. What was happening? Be concise but provide enough detail so an evaluator understands the environment.
+                                            </p>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="text-sm leading-relaxed">
+                                                <strong className="font-bold text-white">T – Task:</strong> Define the specific challenge, goal, or leadership responsibility you needed to address.
+                                            </p>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="text-sm leading-relaxed">
+                                                <strong className="font-bold text-white">A – Action:</strong> This is the most critical part. Describe the specific steps you took. You must map these actions directly to the Behavioral Indicators (BIs) of the competency you are practicing.
+                                            </p>
+                                        </div>
+                                        
+                                        <div>
+                                            <p className="text-sm leading-relaxed">
+                                                <strong className="font-bold text-white">R – Result:</strong> What was the outcome of your actions? Focus on the impact on your team, safety, or operations.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <p className="text-sm leading-relaxed">
+                                        Include a section on <strong className="font-bold text-white">Learning</strong>, what did this experience teach you about your leadership? You must submit your one best STAR entry for every Behavioral Indicator (a total of five 'best-of' entries per competency).
+                                    </p>
+                                </div>
                             </div>
                             <div className="absolute right-0 bottom-0 opacity-10 translate-x-1/4 translate-y-1/4">
                                 <Target size={240} />
@@ -279,8 +326,8 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                 <div className="grid grid-cols-1 gap-6">
                                     {(["situation", "task", "action", "result"] as const).map((key) => (
                                         <div key={key} className="space-y-2">
-                                            <label className="text-[10px] uppercase tracking-widest font-bold text-[#C5A059]">
-                                                {key}
+                                            <label className="text-[10px] uppercase tracking-widest font-bold text-[#C5A059] flex items-center gap-1">
+                                                {key} <span className="text-red-500">*</span>
                                             </label>
                                             <textarea
                                                 value={currentStar[key]}
@@ -288,6 +335,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                                     setCurrentStar((prev) => ({ ...prev, [key]: e.target.value }))
                                                 }
                                                 placeholder={`Describe the ${key}...`}
+                                                required
                                                 className="w-full h-24 bg-white border border-[#E8E4D8] rounded-2xl p-4 focus:ring-2 focus:ring-[#C5A059]/20 focus:border-[#C5A059] transition-all resize-none outline-none text-sm"
                                             />
                                         </div>
@@ -295,7 +343,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
 
                                     <div className="space-y-2">
                                         <label className="text-[10px] uppercase tracking-widest font-bold text-[#C5A059] flex items-center gap-2">
-                                            Evidence <span className="text-[#1B4332]/40 font-normal normal-case">(Drive URL)</span>
+                                            Evidence <span className="text-red-500">*</span> <span className="text-[#1B4332]/40 font-normal normal-case">(Drive URL)</span>
                                         </label>
                                         <div className="relative">
                                             <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1B4332]/30" />
@@ -306,6 +354,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                                     setCurrentStar((prev) => ({ ...prev, evidenceUrl: e.target.value }))
                                                 }
                                                 placeholder="https://drive.google.com/..."
+                                                required
                                                 className="w-full bg-white border border-[#E8E4D8] rounded-2xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-[#C5A059]/20 focus:border-[#C5A059] transition-all outline-none text-sm"
                                             />
                                         </div>
@@ -314,7 +363,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
 
                                 <button
                                     onClick={handleAddPortfolio}
-                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result}
+                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result || !currentStar.evidenceUrl}
                                     className="w-full bg-[#1B4332] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#1B4332]/90 disabled:opacity-20 transition-all flex items-center justify-center gap-2"
                                 >
                                     <Plus className="w-5 h-5" /> Add to Archive
