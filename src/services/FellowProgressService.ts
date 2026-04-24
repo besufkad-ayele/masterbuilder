@@ -122,6 +122,12 @@ export const FellowProgressService = {
         return s.docs.map(d => ({ id: d.id, ...d.data() } as GroundingModule));
     },
 
+    /**
+     * Updates an existing portfolio with review feedback from admin/facilitator.
+     * This method UPDATES the existing portfolio document, it does NOT create a new one.
+     * @param portfolioId - The ID of the existing portfolio to update
+     * @param review - Review data including status, feedback, score, and reviewer
+     */
     async updatePortfolioReview(
         portfolioId: string,
         review: {
