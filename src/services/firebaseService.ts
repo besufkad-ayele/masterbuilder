@@ -413,6 +413,14 @@ export const firebaseService = {
             });
         },
 
+        async updatePortfolio(id: string, updates: Partial<Portfolio>): Promise<void> {
+            const ref = doc(db, 'portfolios', id);
+            await updateDoc(ref, {
+                ...updates,
+                updated_at: new Date().toISOString()
+            });
+        },
+
         async updatePhaseProgress(userId: string, biId: string, phaseType: PhaseType, updates: Partial<PhaseProgress>): Promise<void> {
             const q = query(
                 collection(db, 'phase_progress'),

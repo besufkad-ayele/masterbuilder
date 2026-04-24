@@ -2053,6 +2053,8 @@ export default function FellowProgressTracker({
     ) => {
         if (!reviewingPortfolio) return;
         try {
+            // Update the EXISTING portfolio with review feedback
+            // This does NOT create a new portfolio, it updates the existing one
             await FellowProgressService.updatePortfolioReview(
                 reviewingPortfolio.id,
                 {
@@ -2062,6 +2064,8 @@ export default function FellowProgressTracker({
                     reviewed_by: "Admin",
                 }
             );
+            
+            // Update local state to reflect the changes immediately
             setPortfolios((prev) =>
                 prev.map((p) =>
                     p.id === reviewingPortfolio.id
