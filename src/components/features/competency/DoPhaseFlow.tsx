@@ -60,6 +60,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
     const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(
         null
     );
+    const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
 
     // Fetch existing portfolios on mount
     useEffect(() => {
@@ -98,33 +99,57 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
         )
             return;
 
-        if (portfolios.length >= 3) return;
+        if (portfolios.length >= 3 && !editingPortfolioId) return;
 
         setIsSaving(true);
         try {
-            const portfolioData: Omit<Portfolio, 'id' | 'created_at' | 'updated_at'> = {
-                user_id: userId,
-                behavioral_indicator_id: biId,
-                status: 'draft',
-                star_situation: currentStar.situation,
-                star_task: currentStar.task,
-                star_action: currentStar.action,
-                star_result: currentStar.result,
-                evidence_urls: currentStar.evidenceUrl ? [currentStar.evidenceUrl] : [],
-            };
+            if (editingPortfolioId) {
+                // Update existing portfolio
+                const portfolioData: Partial<Portfolio> = {
+                    star_situation: currentStar.situation,
+                    star_task: currentStar.task,
+                    star_action: currentStar.action,
+                    star_result: currentStar.result,
+                    evidence_urls: currentStar.evidenceUrl ? [currentStar.evidenceUrl] : [],
+                    updated_at: new Date().toISOString()
+                };
 
-            const newId = await firebaseService.fellow.submitPortfolio(portfolioData);
-            const newItem: Portfolio = {
-                id: newId,
-                ...portfolioData,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            };
+                await firebaseService.fellow.updatePortfolio(editingPortfolioId, portfolioData);
+                
+                setPortfolios(prev => prev.map(p => 
+                    p.id === editingPortfolioId 
+                        ? { ...p, ...portfolioData }
+                        : p
+                ));
+                
+                setEditingPortfolioId(null);
+            } else {
+                // Create new portfolio
+                const portfolioData: Omit<Portfolio, 'id' | 'created_at' | 'updated_at'> = {
+                    user_id: userId,
+                    behavioral_indicator_id: biId,
+                    status: 'draft',
+                    star_situation: currentStar.situation,
+                    star_task: currentStar.task,
+                    star_action: currentStar.action,
+                    star_result: currentStar.result,
+                    evidence_urls: currentStar.evidenceUrl ? [currentStar.evidenceUrl] : [],
+                };
 
-            setPortfolios([...portfolios, newItem]);
+                const newId = await firebaseService.fellow.submitPortfolio(portfolioData);
+                const newItem: Portfolio = {
+                    id: newId,
+                    ...portfolioData,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+
+                setPortfolios([...portfolios, newItem]);
+            }
+            
             setCurrentStar({ situation: "", task: "", action: "", result: "", evidenceUrl: "" });
         } catch (error) {
-            console.error("Failed to add portfolio draft", error);
+            console.error("Failed to save portfolio", error);
         } finally {
             setIsSaving(false);
         }
@@ -139,10 +164,32 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                 // Actually, I'll just filter locally for now if delete isn't in fellow service
                 setPortfolios(portfolios.filter((p) => p.id !== id));
                 if (selectedPortfolioId === id) setSelectedPortfolioId(null);
+                if (editingPortfolioId === id) {
+                    setEditingPortfolioId(null);
+                    setCurrentStar({ situation: "", task: "", action: "", result: "", evidenceUrl: "" });
+                }
             } catch (error) {
                 console.error("Failed to delete", error);
             }
         }
+    };
+
+    const handleEditPortfolio = (portfolio: Portfolio) => {
+        setEditingPortfolioId(portfolio.id);
+        setCurrentStar({
+            situation: portfolio.star_situation,
+            task: portfolio.star_task,
+            action: portfolio.star_action,
+            result: portfolio.star_result,
+            evidenceUrl: portfolio.evidence_urls?.[0] || "",
+        });
+        // Scroll to form
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelEdit = () => {
+        setEditingPortfolioId(null);
+        setCurrentStar({ situation: "", task: "", action: "", result: "", evidenceUrl: "" });
     };
 
     const handleSubmit = async () => {
@@ -153,10 +200,11 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
 
         setIsSaving(true);
         try {
-            // Update the status of the selected portfolio to 'submitted'
+            // Update the status of the EXISTING portfolio to 'submitted'
+            // This does NOT create a new portfolio, it updates the existing one
             await firebaseService.fellow.updatePortfolioStatus(selectedPortfolioId, 'submitted');
 
-            // Re-fetch or update local state
+            // Update local state to reflect the change
             setPortfolios(prev => prev.map(p =>
                 p.id === selectedPortfolioId ? { ...p, status: 'submitted', submitted_at: new Date().toISOString() } : p
             ));
@@ -272,8 +320,15 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                             {/* Form Section */}
                             <div className="flex-1 space-y-6">
                                 <div className="space-y-1">
-                                    <h4 className="text-2xl font-serif italic text-[#1B4332]">Create STAR Entry</h4>
-                                    <p className="text-[#1B4332]/50 text-xs">You must create at least 3 entries to proceed (simulated for training).</p>
+                                    <h4 className="text-2xl font-serif italic text-[#1B4332]">
+                                        {editingPortfolioId ? 'Edit STAR Entry' : 'Create STAR Entry'}
+                                    </h4>
+                                    <p className="text-[#1B4332]/50 text-xs">
+                                        {editingPortfolioId 
+                                            ? 'Update your entry and click "Save Changes" to update it in the archive.'
+                                            : 'You must create at least 3 entries to proceed (simulated for training).'
+                                        }
+                                    </p>
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-6">
@@ -314,11 +369,30 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
 
                                 <button
                                     onClick={handleAddPortfolio}
-                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result}
+                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result || isSaving}
                                     className="w-full bg-[#1B4332] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#1B4332]/90 disabled:opacity-20 transition-all flex items-center justify-center gap-2"
                                 >
-                                    <Plus className="w-5 h-5" /> Add to Archive
+                                    {isSaving ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : editingPortfolioId ? (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" /> Save Changes
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-5 h-5" /> Add to Archive
+                                        </>
+                                    )}
                                 </button>
+
+                                {editingPortfolioId && (
+                                    <button
+                                        onClick={handleCancelEdit}
+                                        className="w-full bg-white text-[#1B4332] py-4 rounded-2xl font-bold uppercase tracking-widest border-2 border-[#E8E4D8] hover:border-[#1B4332] transition-all flex items-center justify-center gap-2"
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
                             </div>
 
                             {/* Archive Section */}
@@ -345,14 +419,29 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                         </div>
                                     ) : (
                                         portfolios.map((p, i) => (
-                                            <div key={p.id} className="p-6 bg-white rounded-3xl border border-[#E8E4D8] shadow-sm group hover:border-[#C5A059] transition-all relative">
+                                            <div 
+                                                key={p.id} 
+                                                className={cn(
+                                                    "p-6 bg-white rounded-3xl border shadow-sm group hover:border-[#C5A059] transition-all relative cursor-pointer",
+                                                    editingPortfolioId === p.id ? "border-[#C5A059] ring-2 ring-[#C5A059]/20" : "border-[#E8E4D8]"
+                                                )}
+                                                onClick={() => handleEditPortfolio(p)}
+                                            >
                                                 <button
-                                                    onClick={() => handleRemovePortfolio(p.id)}
-                                                    className="absolute top-4 right-4 p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleRemovePortfolio(p.id);
+                                                    }}
+                                                    className="absolute top-4 right-4 p-2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 rounded-lg"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
-                                                <h5 className="font-bold text-[#1B4332] mb-1">Entry #{i + 1}</h5>
+                                                <h5 className="font-bold text-[#1B4332] mb-1">
+                                                    Entry #{i + 1}
+                                                    {editingPortfolioId === p.id && (
+                                                        <span className="ml-2 text-xs text-[#C5A059] font-normal">(Editing)</span>
+                                                    )}
+                                                </h5>
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <Badge variant="outline" className={cn(
                                                         "text-[8px] uppercase font-black tracking-tighter",
@@ -372,6 +461,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="inline-flex items-center gap-1 text-[10px] text-[#C5A059] font-bold hover:underline"
+                                                        onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <Link className="w-3 h-3" /> View Evidence
                                                     </a>
