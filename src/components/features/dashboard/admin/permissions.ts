@@ -8,6 +8,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "grounding",
         "fellows",
         "cohorts",
+        "groups",
         "examinations",
         "notifications",
         "profile"
@@ -19,6 +20,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "grounding",
         "fellows",
         "cohorts",
+        "groups",
         "examinations",
         "notifications",
         "profile"
@@ -27,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "dashboard",
         "companies",
         "fellows",
+        "groups",
         "notifications",
         "profile"
     ],
@@ -34,6 +37,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "dashboard",
         "companies",
         "fellows",
+        "groups",
         "notifications",
         "profile"
     ],
@@ -41,6 +45,7 @@ export const ROLE_PERMISSIONS: Record<string, AdminTabKey[]> = {
         "companies",
         "cohorts",
         "fellows",
+        "groups",
         "notifications",
         "profile"
     ],

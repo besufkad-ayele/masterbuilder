@@ -18,12 +18,16 @@ export const FellowService = {
     /**
      * Fetch all fellow profiles with optional filters
      */
-    async getAllFellows(companyId?: string): Promise<FellowProfile[]> {
+    async getAllFellows(companyId?: string, cohortId?: string): Promise<FellowProfile[]> {
         const fellowsRef = collection(db, 'fellow_profiles');
         let q = query(fellowsRef);
 
-        if (companyId) {
+        if (companyId && cohortId) {
+            q = query(fellowsRef, where('company_id', '==', companyId), where('cohort_id', '==', cohortId));
+        } else if (companyId) {
             q = query(fellowsRef, where('company_id', '==', companyId));
+        } else if (cohortId) {
+            q = query(fellowsRef, where('cohort_id', '==', cohortId));
         }
 
         const snapshot = await getDocs(q);
@@ -153,5 +157,27 @@ export const FellowService = {
         const fellowRef = doc(db, 'fellow_profiles', profileId);
         const { deleteDoc } = await import('firebase/firestore');
         await deleteDoc(fellowRef);
+    },
+
+    /**
+     * Get fellows by their user IDs
+     */
+    async getFellowsByIds(userIds: string[]): Promise<FellowProfile[]> {
+        if (!userIds || userIds.length === 0) return [];
+
+        // Firestore 'in' query has a limit of 10 values
+        const fellowsRef = collection(db, 'fellow_profiles');
+        const chunks = [];
+        for (let i = 0; i < userIds.length; i += 10) {
+            chunks.push(userIds.slice(i, i + 10));
+        }
+
+        const results: FellowProfile[] = [];
+        for (const chunk of chunks) {
+            const q = query(fellowsRef, where('user_id', 'in', chunk));
+            const snapshot = await getDocs(q);
+            results.push(...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FellowProfile)));
+        }
+        return results;
     }
 };

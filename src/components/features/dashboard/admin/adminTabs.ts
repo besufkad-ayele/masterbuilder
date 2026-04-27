@@ -10,7 +10,8 @@ import {
   BarChart3,
   FileCheck2,
   GraduationCap,
-  Megaphone
+  Megaphone,
+  Network
 } from "lucide-react";
 
 export const ADMIN_TABS = [
@@ -55,6 +56,20 @@ export const ADMIN_TABS = [
     icon: Calendar,
     href: "/admin?tab=cohorts",
     description: "Create and manage cohorts",
+  },
+  {
+    key: "groups",
+    title: "Peer Circles",
+    icon: Network,
+    href: "/admin?tab=groups",
+    description: "Manage coaching groups and assignments",
+  },
+  {
+    key: "coaches",
+    title: "Coaches",
+    icon: GraduationCap,
+    href: "/admin?tab=coaches",
+    description: "Manage coach profiles and credentials",
   },
   {
     key: "examinations",

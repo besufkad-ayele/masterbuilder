@@ -23,6 +23,24 @@ export const FellowProgressService = {
         return s.docs.map(d => ({ id: d.id, ...d.data() } as Portfolio));
     },
 
+    async getPortfoliosByUserIds(userIds: string[]): Promise<Portfolio[]> {
+        if (!userIds || userIds.length === 0) return [];
+
+        const portfoliosRef = collection(db, 'portfolios');
+        const chunks = [];
+        for (let i = 0; i < userIds.length; i += 10) {
+            chunks.push(userIds.slice(i, i + 10));
+        }
+
+        const results: Portfolio[] = [];
+        for (const chunk of chunks) {
+            const q = query(portfoliosRef, where('user_id', 'in', chunk));
+            const snapshot = await getDocs(q);
+            results.push(...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Portfolio)));
+        }
+        return results;
+    },
+
     async getPhaseProgressByFellow(userId: string): Promise<PhaseProgress[]> {
         const q = query(collection(db, 'phase_progress'), where('user_id', '==', userId));
         const s = await getDocs(q);

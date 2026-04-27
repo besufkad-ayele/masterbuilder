@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Sparkles, Users, Briefcase, ChevronRight, GraduationCap } from "lucide-react";
+import { ArrowLeft, Sparkles, Users, Briefcase, ChevronRight, GraduationCap, Eye, EyeOff } from "lucide-react";
 import { Manrope } from "next/font/google";
 
 import { cn } from "@/lib/utils";
 import BrandLogo from "@/components/features/shared/BrandLogo";
+import CoachLoginForm from "@/components/features/auth/CoachLoginForm";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -20,15 +21,17 @@ const manrope = Manrope({
 });
 
 type LoginStep = 'role-selection' | 'login-form';
-type RoleChoice = 'FELLOW' | 'FACILITATOR' | 'ADMIN';
+type RoleChoice = 'FELLOW' | 'FACILITATOR' | 'COACH' | 'ADMIN';
 
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<LoginStep>('role-selection');
   const [selectedRole, setSelectedRole] = useState<RoleChoice | null>(null);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("Password123!");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,7 +39,20 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), "Password123!");
+      let loginPassword = password.trim();
+      
+      // Fellows use the default password in the background
+      if (selectedRole === 'FELLOW') {
+        loginPassword = "Password123!";
+      }
+
+      if (!email.trim() || (selectedRole !== 'FELLOW' && !loginPassword)) {
+        setError("Please provide all required credentials.");
+        setLoading(false);
+        return;
+      }
+
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), loginPassword);
       const user = userCredential.user;
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -266,6 +282,59 @@ export default function LoginPage() {
                   </div>
                 </div>
               </button>
+
+              {/* ── Coach Card ── */}
+              <button
+                onClick={() => handleRoleSelect('COACH')}
+                className="group relative overflow-hidden flex flex-col text-left rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(29,78,216,0.14)] hover:border-blue-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:col-span-2 lg:col-span-1"
+              >
+                {/* Gradient header */}
+                <div className="relative h-48 w-full bg-gradient-to-br from-[#1E3A8A] via-[#1D4ED8] to-[#3B82F6] overflow-hidden flex items-center justify-center">
+                  {/* Decorative elements */}
+                  <div className="absolute -top-10 -right-10 size-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+                  <div className="absolute -bottom-4 -left-4 size-28 rounded-full bg-blue-200/25 blur-xl pointer-events-none" />
+                  <div className="absolute top-5 left-5 size-2.5 rounded-full bg-white/40" />
+                  <div className="absolute bottom-7 right-7 size-1.5 rounded-full bg-white/25" />
+                  <div className="absolute top-1/2 right-8 h-12 w-px bg-white/10 rotate-12" />
+
+                  {/* Icon + badge */}
+                  <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div
+                      className="size-16 rounded-2xl flex items-center justify-center border border-white/20 shadow-2xl
+                                  bg-white/15 backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300
+                                  group-hover:scale-110 group-hover:rotate-2"
+                    >
+                      <Users className="size-8 text-white" />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/65 border border-white/20 px-3 py-1 rounded-full bg-white/8">
+                      Coach Portal
+                    </span>
+                  </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-7 flex flex-col flex-1">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-blue-900 leading-tight">I&apos;m a Coach</h3>
+                    <p className="text-sm text-blue-900/55 mt-2 leading-relaxed font-medium">
+                      Guide your peer circle, review progress, and provide feedback to assigned fellows
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between mt-6 pt-5 border-t border-[#E8E4D8]">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-900/35">
+                      Continue
+                    </span>
+                    <div
+                      className="size-9 rounded-full flex items-center justify-center transition-all duration-300
+                                    bg-blue-50 group-hover:bg-blue-600 group-hover:shadow-lg group-hover:shadow-blue-400/30"
+                    >
+                      <ChevronRight
+                        className="size-4 text-blue-600 transition-colors duration-300 group-hover:text-white group-hover:translate-x-px"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </button>
             </div>
 
             {/* Admin link */}
@@ -283,83 +352,119 @@ export default function LoginPage() {
           /* ═══════════════════════════════════════════
               STEP 2 — Login Form
           ═══════════════════════════════════════════ */
-          <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-[0_40px_80px_rgba(0,0,0,0.06)] border border-[#E8E4D8] animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
-            {/* Decorative blur */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
+          selectedRole === 'COACH' ? (
+            <CoachLoginForm onBack={() => setStep('role-selection')} />
+          ) : (
+            <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-[0_40px_80px_rgba(0,0,0,0.06)] border border-[#E8E4D8] animate-in fade-in zoom-in-95 duration-500 relative overflow-hidden">
+              {/* Decorative blur */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
 
-            {/* Back button */}
-            <button
-              onClick={() => setStep('role-selection')}
-              className="absolute top-8 left-8 p-2 rounded-full hover:bg-slate-50 text-[#1B4332]/40 hover:text-[#1B4332] transition-all"
-            >
-              <ArrowLeft className="size-5" />
-            </button>
-
-            <div className="mb-10 text-center pt-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-bold uppercase tracking-wider mb-4">
-                {selectedRole === 'ADMIN' ? <Sparkles className="size-3" /> : <Users className="size-3" />}
-                Sign in as {selectedRole?.toLowerCase()}
-              </div>
-              <h1 className="text-2xl font-bold text-[#1B4332] font-serif italic">Secure Access</h1>
-              <p className="text-[#1B4332]/60 text-sm mt-2">
-                Enter your official email to access the workspace.
-              </p>
-            </div>
-
-            <form className="space-y-8" noValidate onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest pl-1" htmlFor="email">
-                  Email Address
-                </label>
-                <input
-                  className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-primary focus:ring-4 focus:ring-primary/5 h-16 placeholder:text-slate-300 px-6 text-base transition-all outline-none"
-                  id="email"
-                  name="email"
-                  placeholder="name@company.com"
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setError("");
-                  }}
-                />
-              </div>
-
-              {error && (
-                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl">
-                  <p className="text-xs text-rose-500 font-medium text-center">{error}</p>
-                </div>
-              )}
-
+              {/* Back button */}
               <button
-                className="w-full flex items-center justify-center rounded-2xl h-16 bg-[#1B4332] text-white text-base font-bold transition-all hover:bg-[#2D5A40] shadow-xl shadow-[#1B4332]/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
-                type="submit"
-                disabled={loading}
+                onClick={() => setStep('role-selection')}
+                className="absolute top-8 left-8 p-2 rounded-full hover:bg-slate-50 text-[#1B4332]/40 hover:text-[#1B4332] transition-all"
               >
-                {loading ? (
-                  <div className="flex items-center gap-3">
-                    <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Verifying...</span>
-                  </div>
-                ) : "Enter Workspace"}
+                <ArrowLeft className="size-5" />
               </button>
-            </form>
 
-            <div className="mt-12 text-center text-[10px] text-[#1B4332]/30 font-medium tracking-widest">
-              BY PROCEEDING, YOU AGREE TO OUR TERMS OF SERVICE AND PRIVACY POLICY.
-            </div>
+              <div className="mb-10 text-center pt-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-bold uppercase tracking-wider mb-4">
+                  {selectedRole === 'ADMIN' ? <Sparkles className="size-3" /> : <Users className="size-3" />}
+                  Sign in as {selectedRole?.toLowerCase()}
+                </div>
+                <h1 className="text-2xl font-bold text-[#1B4332] font-serif italic">Secure Access</h1>
+                <p className="text-[#1B4332]/60 text-sm mt-2">
+                  Enter your official email to access the workspace.
+                </p>
+              </div>
 
-            <div className="mt-10 pt-8 border-t border-[#E8E4D8] flex justify-center">
-              <Link
-                href="/"
-                className="text-xs font-bold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-2 uppercase tracking-widest"
-              >
-                <ArrowLeft className="size-3" />
-                Return to home
-              </Link>
+              <form className="space-y-8" noValidate onSubmit={handleSubmit}>
+                <div className="space-y-4">
+                  <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest pl-1" htmlFor="email">
+                    Email Address
+                  </label>
+                  <input
+                    className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-primary focus:ring-4 focus:ring-primary/5 h-16 placeholder:text-slate-300 px-6 text-base transition-all outline-none"
+                    id="email"
+                    name="email"
+                    placeholder="name@company.com"
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
+                  />
+                </div>
+
+                {selectedRole !== 'FELLOW' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center justify-between pl-1">
+                      <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest" htmlFor="password">
+                        Password
+                      </label>
+                    </div>
+                    <div className="relative group/pass">
+                      <input
+                        className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-primary focus:ring-4 focus:ring-primary/5 h-16 placeholder:text-slate-300 px-6 text-base transition-all outline-none"
+                        id="password"
+                        name="password"
+                        placeholder="••••••••"
+                        required
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setError("");
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl text-[#1B4332]/30 hover:text-[#1B4332] hover:bg-[#1B4332]/5 transition-all"
+                      >
+                        {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl">
+                    <p className="text-xs text-rose-500 font-medium text-center">{error}</p>
+                  </div>
+                )}
+
+                <button
+                  className="w-full flex items-center justify-center rounded-2xl h-16 bg-[#1B4332] text-white text-base font-bold transition-all hover:bg-[#2D5A40] shadow-xl shadow-[#1B4332]/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                  type="submit"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-3">
+                      <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Verifying...</span>
+                    </div>
+                  ) : "Enter Workspace"}
+                </button>
+              </form>
+
+              <div className="mt-12 text-center text-[10px] text-[#1B4332]/30 font-medium tracking-widest">
+                BY PROCEEDING, YOU AGREE TO OUR TERMS OF SERVICE AND PRIVACY POLICY.
+              </div>
+
+              <div className="mt-10 pt-8 border-t border-[#E8E4D8] flex justify-center">
+                <Link
+                  href="/"
+                  className="text-xs font-bold text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-2 uppercase tracking-widest"
+                >
+                  <ArrowLeft className="size-3" />
+                  Return to home
+                </Link>
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
     </section>

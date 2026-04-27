@@ -4,6 +4,7 @@ import { useState } from "react";
 import AdminFellowsTab from "./AdminFellowsTab";
 import AdminAdminsTab from "./AdminAdminsTab";
 import AdminFacilitatorsTab from "./AdminFacilitatorsTab";
+import AdminCoachesTab from "./AdminCoachesTab";
 import {
     GraduationCap,
     ShieldCheck,
@@ -13,13 +14,14 @@ import {
     LayoutDashboard,
     Briefcase,
     Users,
+    Users2,
     Settings2 as LucideSettings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { JSX } from "react";
 
-type ManagementType = "fellow" | "facilitator" | "admin" | "hub";
+type ManagementType = "fellow" | "facilitator" | "coach" | "admin" | "hub";
 
 // ─── Navigation Item Component ────────────────────────────────────────────────
 
@@ -158,6 +160,7 @@ export default function ProfileManagementTab() {
         const views: Record<string, JSX.Element> = {
             fellow: <AdminFellowsTab />,
             facilitator: <AdminFacilitatorsTab />,
+            coach: <AdminCoachesTab />,
             admin: <AdminAdminsTab />,
         };
 
@@ -175,6 +178,13 @@ export default function ProfileManagementTab() {
                 label: "Facilitator Management",
                 activeClass: "bg-amber-600 text-white shadow-lg shadow-amber-600/20",
                 inactiveClass: "text-amber-600/40 hover:bg-amber-50 hover:text-amber-600/60",
+            },
+            {
+                type: "coach" as const,
+                icon: <Users2 className="size-full" />,
+                label: "Coach Management",
+                activeClass: "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20",
+                inactiveClass: "text-indigo-600/40 hover:bg-indigo-50 hover:text-indigo-600/60",
             },
             {
                 type: "admin" as const,
@@ -255,7 +265,9 @@ export default function ProfileManagementTab() {
                                 ? "Fellows"
                                 : activeView === "facilitator"
                                     ? "Facilitators"
-                                    : "Admins"}
+                                    : activeView === "coach"
+                                        ? "Coaches"
+                                        : "Admins"}
                         </span>
                     </div>
                 </div>
@@ -322,6 +334,17 @@ export default function ProfileManagementTab() {
                     onClick={() => setActiveView("facilitator")}
                     tag="Facilitator Portal"
                     gradient="from-[#78350F] via-[#B45309] to-[#F59E0B]"
+                />
+
+                {/* Coach Management Card */}
+                <ManagementCard
+                    title="Coach Management"
+                    description="Oversee leadership mentors and coaching groups"
+                    icon={<Users2 />}
+                    type="coach"
+                    onClick={() => setActiveView("coach")}
+                    tag="Coach Portal"
+                    gradient="from-[#312E81] via-[#4338CA] to-[#6366F1]"
                 />
 
                 {/* Admin Management Card */}

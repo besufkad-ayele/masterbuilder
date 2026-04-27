@@ -21,6 +21,8 @@ import {
     FellowProfile,
     FacilitatorProfile,
     AdminProfile,
+    CoachProfile,
+    PeerCircle,
     Cohort,
     Wave,
     Competency,
@@ -87,6 +89,23 @@ export const firebaseService = {
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Cohort));
     },
 
+    async getCoachProfile(userId: string): Promise<CoachProfile | null> {
+        const q = query(collection(db, 'coach_profiles'), where('user_id', '==', userId));
+        const s = await getDocs(q);
+        return s.empty ? null : { id: s.docs[0].id, ...s.docs[0].data() } as CoachProfile;
+    },
+
+    async getPeerCircle(id: string): Promise<PeerCircle | null> {
+        const d = await getDoc(doc(db, 'peer_circles', id));
+        return d.exists() ? { id: d.id, ...d.data() } as PeerCircle : null;
+    },
+
+    async getCoachPeerCircle(coachId: string): Promise<PeerCircle | null> {
+        const q = query(collection(db, 'peer_circles'), where('coach_id', '==', coachId));
+        const s = await getDocs(q);
+        return s.empty ? null : { id: s.docs[0].id, ...s.docs[0].data() } as PeerCircle;
+    },
+
     // --- Admin Methods ---
     admin: {
         async getDashboardState(): Promise<AdminDashboardState> {
@@ -94,7 +113,9 @@ export const firebaseService = {
             const companies = await firebaseService.admin.getCompanies();
             const cohorts = await firebaseService.admin.getCohorts();
             const fellows = await firebaseService.admin.getFellowProfiles();
-            const facilitators = await firebaseService.admin.getFacilitatorProfiles();
+            const evaluators = await firebaseService.admin.getFacilitatorProfiles();
+            const coaches = await firebaseService.admin.getCoachProfiles();
+            const peerCircles = await firebaseService.admin.getPeerCircles();
             const competencies = await firebaseService.admin.getCompetencies();
             const results = await firebaseService.admin.getWaveResults();
             const evaluations = await firebaseService.admin.getPortfolios();
@@ -104,7 +125,9 @@ export const firebaseService = {
                 companies,
                 cohorts,
                 fellows,
-                facilitators,
+                facilitators: evaluators,
+                coaches,
+                peerCircles,
                 competencies,
                 results,
                 evaluations,
@@ -136,6 +159,28 @@ export const firebaseService = {
         async getFacilitatorProfiles(): Promise<FacilitatorProfile[]> {
             const snapshot = await getDocs(collection(db, 'facilitator_profiles'));
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FacilitatorProfile));
+        },
+
+        async getCoachProfiles(): Promise<CoachProfile[]> {
+            const snapshot = await getDocs(collection(db, 'coach_profiles'));
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CoachProfile));
+        },
+
+        async getPeerCircles(): Promise<PeerCircle[]> {
+            const snapshot = await getDocs(collection(db, 'peer_circles'));
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PeerCircle));
+        },
+
+        async createPeerCircle(data: PeerCircle): Promise<void> {
+            await setDoc(doc(db, 'peer_circles', data.id), data);
+        },
+
+        async updatePeerCircle(id: string, updates: Partial<PeerCircle>): Promise<void> {
+            await updateDoc(doc(db, 'peer_circles', id), updates);
+        },
+
+        async createCoachProfile(data: CoachProfile): Promise<void> {
+            await setDoc(doc(db, 'coach_profiles', data.id), data);
         },
 
         async getCompetencies(): Promise<Competency[]> {
@@ -503,6 +548,56 @@ export const firebaseService = {
             }
         }
     },
+
+    coach: {
+        async getDashboardState(userId: string): Promise<CoachDashboardState | null> {
+            const user = await firebaseService.getUser(userId);
+            if (!user) return null;
+
+            const profile = await firebaseService.getCoachProfile(userId);
+            if (!profile || !profile.is_active) return null;
+
+            const peerCircle = await firebaseService.getCoachPeerCircle(profile.id);
+            
+            const notifications = await firebaseService.notifications.getNotifications(peerCircle?.cohort_id || 'coaches');
+
+            if (!peerCircle) return {
+                user,
+                profile,
+                peerCircle: null,
+                fellows: [],
+                portfolios: [],
+                progress: [],
+                notifications
+            };
+
+            // Fetch fellows in the peer circle
+            const fellowProfiles = await firebaseService.admin.getFellowProfiles();
+            const circleFellows = fellowProfiles.filter(f => peerCircle.fellow_ids.includes(f.user_id));
+
+            // Fetch portfolios and progress for these fellows
+            const portfolios: Portfolio[] = [];
+            const progress: PhaseProgress[] = [];
+
+            for (const fellow of circleFellows) {
+                const fPortfolios = await firebaseService.fellow.getFellowPortfolios(fellow.user_id);
+                const fProgress = await firebaseService.fellow.getFellowProgress(fellow.user_id);
+                portfolios.push(...fPortfolios);
+                progress.push(...fProgress);
+            }
+
+            return {
+                user,
+                profile,
+                peerCircle,
+                fellows: circleFellows,
+                portfolios,
+                progress,
+                notifications
+            };
+        }
+    },
+
     notifications: {
         async getNotifications(audience?: string, onlyActive: boolean = true): Promise<LDPNotification[]> {
             let q;

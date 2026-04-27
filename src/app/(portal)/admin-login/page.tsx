@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, ShieldCheck, Lock, Mail, ChevronRight } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Lock, Mail, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { Manrope } from "next/font/google";
 
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -129,19 +130,28 @@ export default function AdminLoginPage() {
                 <Lock className="size-3 text-[#1B4332]/40" />
                 Secret Key
               </label>
-              <input
-                className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-[#1B4332] focus:ring-4 focus:ring-[#1B4332]/5 h-16 placeholder:text-slate-400 p-6 text-base transition-all outline-none"
-                id="password"
-                name="password"
-                placeholder="••••••••••••"
-                required
-                type="password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setError("");
-                }}
-              />
+              <div className="relative group/pass">
+                <input
+                  className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-[#1B4332] focus:ring-4 focus:ring-[#1B4332]/5 h-16 placeholder:text-slate-400 p-6 text-base transition-all outline-none"
+                  id="password"
+                  name="password"
+                  placeholder="••••••••••••"
+                  required
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setError("");
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl text-[#1B4332]/30 hover:text-[#1B4332] hover:bg-[#1B4332]/5 transition-all"
+                >
+                  {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}

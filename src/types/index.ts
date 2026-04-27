@@ -1,6 +1,6 @@
 // --- Enums (Aligned with DBML) ---
 
-export type UserRole = 'ADMIN' | 'FACILITATOR' | 'FELLOW';
+export type UserRole = 'ADMIN' | 'FACILITATOR' | 'FELLOW' | 'COACH';
 
 export type WaveLevel = 'Basic' | 'Intermediate' | 'Advanced' | 'Expert';
 
@@ -83,6 +83,7 @@ export interface FellowProfile {
   status: FellowStatus;
   company_id: string;
   cohort_id?: string;
+  peer_circle_id?: string;
   current_wave_id?: string;
   enrolled_at?: string;
   department?: string;
@@ -91,6 +92,32 @@ export interface FellowProfile {
   phone?: string;
   location?: string;
   bio?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  specialization: string[];
+  is_active: boolean;
+  temporary_password?: string; // For admin reference
+  phone?: string;
+  location?: string;
+  bio?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PeerCircle {
+  id: string;
+  name: string;
+  coach_id: string;
+  cohort_id: string;
+  company_id: string;
+  fellow_ids: string[];
   created_at: string;
   updated_at: string;
 }
@@ -377,6 +404,18 @@ export interface AdminDashboardState {
   results: WaveResult[];
   evaluations: Portfolio[];
   groundingModules: GroundingModule[];
+  notifications: LDPNotification[];
+  coaches: CoachProfile[];
+  peerCircles: PeerCircle[];
+}
+
+export interface CoachDashboardState {
+  user: User;
+  profile: CoachProfile;
+  peerCircle: PeerCircle | null;
+  fellows: FellowProfile[];
+  portfolios: Portfolio[];
+  progress: PhaseProgress[];
   notifications: LDPNotification[];
 }
 
