@@ -5,10 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { 
     Network, 
     Loader2,
-    Filter,
     ChevronRight,
     ArrowUpDown,
-    Check
+    ArrowLeft,
+    Users,
+    Search,
+    Clock
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,14 +23,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { 
-    CheckCircle2, 
-    Clock, 
-    AlertCircle, 
-    FileText, 
-    TrendingUp 
-} from "lucide-react";
 import { FellowProgressService } from "@/services/FellowProgressService";
+import { CoachService } from "@/services/CoachService";
+import { FellowService } from "@/services/FellowService";
+import { StorageService } from "@/services/storageService";
 import { PeerCircle, FellowProfile, Portfolio } from "@/types";
 import FellowPortfolio from "@/components/features/dashboard/fellow/FellowPortfolio";
 import { cn } from "@/lib/utils";
@@ -52,7 +50,7 @@ export default function CoachFellowsTab() {
             if (!user || user.role !== 'COACH') return;
 
             try {
-                const circleData = await CoachService.getPeerCirclesByCoachId(user.uid);
+                const circleData = await CoachService.getPeerCirclesByCoachId(user.id);
                 setCircles(circleData);
 
                 // Initial filter from URL if present
@@ -62,7 +60,7 @@ export default function CoachFellowsTab() {
                 }
 
                 // Fetch all fellows across all coach's circles
-                const allFellowIds = Array.from(new Set(circleData.flatMap(c => c.fellow_ids)));
+                const allFellowIds = Array.from(new Set(circleData.flatMap((c: PeerCircle) => c.fellow_ids))) as string[];
                 if (allFellowIds.length > 0) {
                     const fellowData = await FellowService.getFellowsByIds(allFellowIds);
                     setFellows(fellowData);

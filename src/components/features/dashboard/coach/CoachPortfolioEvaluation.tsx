@@ -4,17 +4,11 @@ import { useState, useEffect, useMemo } from "react";
 import { 
     FileSearch, 
     Loader2, 
-    Filter, 
     Search,
     Clock,
-    CheckCircle2,
-    XCircle,
     ChevronRight,
     ExternalLink,
-    AlertCircle,
     MessageSquare,
-    Check,
-    TrendingUp,
     ArrowUpDown,
     Calendar,
     User as UserIcon,
@@ -55,17 +49,16 @@ export default function CoachPortfolioEvaluation() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterCircleId, setFilterCircleId] = useState<string>("all");
     const [filterFellowId, setFilterFellowId] = useState<string>("all");
-    const [filterStatus, setFilterStatus] = useState<string>("pending"); // pending, approved, rejected, needs_feedback, all
+    const [filterStatus, setFilterStatus] = useState<string>("pending"); // pending, needs_feedback, all
     const [filterDomain, setFilterDomain] = useState<string>("all"); // all, ly, lo, lorg
     const [behavioralIndicators, setBehavioralIndicators] = useState<BehavioralIndicator[]>([]);
     
-    // Evaluation state
+    // Review state
     const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
-    const [evaluationFeedback, setEvaluationFeedback] = useState("");
-    const [evaluationScore, setEvaluationScore] = useState<number>(0);
+    const [reviewFeedback, setReviewFeedback] = useState("");
     const [submitting, setSubmitting] = useState(false);
     
-    const [sortBy, setSortBy] = useState<string>("date_desc"); // date_desc, date_asc, name_asc, score_desc
+    const [sortBy, setSortBy] = useState<string>("date_desc"); // date_desc, date_asc, name_asc
 
     useEffect(() => {
         const fetchData = async () => {
@@ -137,42 +130,38 @@ export default function CoachPortfolioEvaluation() {
                 const fellowB = fellows.find(f => f.user_id === b.user_id)?.full_name || "";
                 return fellowA.localeCompare(fellowB);
             }
-            if (sortBy === "score_desc") {
-                return (b.score || 0) - (a.score || 0);
-            }
             return 0;
         });
     }, [portfolios, fellows, searchQuery, filterCircleId, filterFellowId, filterStatus, filterDomain, sortBy]);
 
-    const handleEvaluate = (portfolio: Portfolio) => {
+    const handleReview = (portfolio: Portfolio) => {
         setSelectedPortfolio(portfolio);
-        setEvaluationFeedback(portfolio.feedback || "");
-        setEvaluationScore(portfolio.score || 0);
+        setReviewFeedback(portfolio.feedback || "");
     };
 
-    const submitEvaluation = async (status: PortfolioStatus) => {
+    const submitReview = async () => {
         if (!selectedPortfolio) return;
         
         setSubmitting(true);
         try {
             const user = StorageService.getCurrentUser();
+            // Keep the current status, just add feedback
             await FellowProgressService.updatePortfolioReview(selectedPortfolio.id, {
-                status,
-                feedback: evaluationFeedback,
-                score: evaluationScore,
+                status: selectedPortfolio.status as PortfolioStatus,
+                feedback: reviewFeedback,
                 reviewed_by: user?.id
             });
 
             // Update local state
             setPortfolios(prev => prev.map(p => 
                 p.id === selectedPortfolio.id 
-                ? { ...p, status, feedback: evaluationFeedback, score: evaluationScore, updated_at: new Date().toISOString() } 
+                ? { ...p, feedback: reviewFeedback, updated_at: new Date().toISOString() } 
                 : p
             ));
             
             setSelectedPortfolio(null);
         } catch (error) {
-            console.error("Error submitting evaluation:", error);
+            console.error("Error submitting review:", error);
         } finally {
             setSubmitting(false);
         }
@@ -187,19 +176,16 @@ export default function CoachPortfolioEvaluation() {
     }
 
     const pendingCount = portfolios.filter(p => p.status === 'submitted' || p.status === 'resubmitted').length;
-    const approvedCount = portfolios.filter(p => p.status === 'approved').length;
-    const avgScore = portfolios.filter(p => p.status === 'approved').length > 0 
-        ? Math.round(portfolios.filter(p => p.status === 'approved').reduce((acc, p) => acc + (p.score || 0), 0) / portfolios.filter(p => p.status === 'approved').length) 
-        : 0;
+    const reviewedCount = portfolios.filter(p => p.feedback && p.feedback.trim() !== "").length;
 
     return (
         <div className="space-y-10">
             {/* Header section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-4xl font-serif font-bold text-[#1B4332]">Portfolio Evaluation Hub</h1>
+                    <h1 className="text-4xl font-serif font-bold text-[#1B4332]">Portfolio Review Hub</h1>
                     <p className="text-muted-foreground font-serif italic mt-1">
-                        Review submissions and provide high-quality feedback to your fellows.
+                        Review submissions and provide constructive feedback to your fellows.
                     </p>
                 </div>
 
@@ -209,28 +195,18 @@ export default function CoachPortfolioEvaluation() {
                             <Clock className="size-5" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-900/40 leading-none">Awaiting</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-900/40 leading-none">Awaiting Review</p>
                             <p className="text-xl font-bold text-amber-900">{pendingCount}</p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 px-5 py-3 rounded-2xl shadow-sm">
                         <div className="size-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                            <CheckCircle2 className="size-5" />
+                            <MessageSquare className="size-5" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900/40 leading-none">Approved</p>
-                            <p className="text-xl font-bold text-emerald-900">{approvedCount}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 bg-primary/5 border border-primary/10 px-5 py-3 rounded-2xl shadow-sm">
-                        <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                            <TrendingUp className="size-5" />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/40 leading-none">Avg Score</p>
-                            <p className="text-xl font-bold text-primary">{avgScore}%</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900/40 leading-none">Reviewed</p>
+                            <p className="text-xl font-bold text-emerald-900">{reviewedCount}</p>
                         </div>
                     </div>
                 </div>
@@ -298,8 +274,6 @@ export default function CoachPortfolioEvaluation() {
                             <SelectContent className="rounded-2xl">
                                 <SelectItem value="pending">Awaiting Review</SelectItem>
                                 <SelectItem value="needs_feedback">Needs Feedback</SelectItem>
-                                <SelectItem value="approved">Approved</SelectItem>
-                                <SelectItem value="rejected">Rejected</SelectItem>
                                 <SelectItem value="all">All Submissions</SelectItem>
                             </SelectContent>
                         </Select>
@@ -315,7 +289,6 @@ export default function CoachPortfolioEvaluation() {
                                 <SelectItem value="date_desc">Newest First</SelectItem>
                                 <SelectItem value="date_asc">Oldest First</SelectItem>
                                 <SelectItem value="name_asc">Fellow Name</SelectItem>
-                                <SelectItem value="score_desc">Highest Score</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -409,14 +382,11 @@ export default function CoachPortfolioEvaluation() {
 
                                             <Button 
                                                 size="sm" 
-                                                variant={isPending ? "default" : "outline"}
-                                                className={cn(
-                                                    "rounded-full h-8 text-[10px] font-black uppercase tracking-widest px-4",
-                                                    isPending && "bg-primary hover:bg-primary-dark text-white shadow-md shadow-primary/20"
-                                                )}
-                                                onClick={() => handleEvaluate(portfolio)}
+                                                variant="default"
+                                                className="rounded-full h-8 text-[10px] font-black uppercase tracking-widest px-4 bg-primary hover:bg-primary-dark text-white shadow-md shadow-primary/20"
+                                                onClick={() => handleReview(portfolio)}
                                             >
-                                                {isPending ? "Evaluate" : "View Feedback"}
+                                                Review
                                             </Button>
                                         </div>
                                     </div>
@@ -427,7 +397,7 @@ export default function CoachPortfolioEvaluation() {
                 </div>
             )}
 
-            {/* Evaluation Dialog */}
+            {/* Review Dialog */}
             <Dialog open={!!selectedPortfolio} onOpenChange={(open) => !open && setSelectedPortfolio(null)}>
                 <DialogContent className="max-w-2xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
                     <DialogHeader className="p-8 bg-primary/5 border-b border-primary/10">
@@ -441,7 +411,7 @@ export default function CoachPortfolioEvaluation() {
                             {fellows.find(f => f.user_id === selectedPortfolio?.user_id)?.full_name}
                         </DialogTitle>
                         <DialogDescription className="font-serif italic text-base">
-                            Assess the evidence provided and offer constructive guidance for growth.
+                            Review the submission and provide constructive feedback for growth.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -480,74 +450,38 @@ export default function CoachPortfolioEvaluation() {
                             </div>
                         )}
 
-                        {/* Score & Feedback */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="md:col-span-1">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2">Score (0-100)</p>
-                                <div className="relative">
-                                    <Input 
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={evaluationScore}
-                                        onChange={(e) => setEvaluationScore(Number(e.target.value))}
-                                        className="h-14 rounded-2xl border-stone-200 text-center text-2xl font-bold focus:border-primary transition-all"
-                                    />
-                                    <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-stone-300" />
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-3">
-                                    {[70, 80, 90, 100].map(score => (
-                                        <button 
-                                            key={score}
-                                            onClick={() => setEvaluationScore(score)}
-                                            className={cn(
-                                                "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
-                                                evaluationScore === score 
-                                                    ? "bg-primary text-white" 
-                                                    : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-                                            )}
-                                        >
-                                            {score}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="text-[10px] text-stone-400 mt-4 italic text-center">
-                                    Determines progress weight
-                                </p>
-                            </div>
-                            <div className="md:col-span-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2">Coaching Feedback</p>
-                                <Textarea 
-                                    placeholder="Provide detailed feedback on what was done well and where to iterate..."
-                                    className="min-h-[120px] rounded-2xl border-stone-200 focus:border-primary font-serif p-4"
-                                    value={evaluationFeedback}
-                                    onChange={(e) => setEvaluationFeedback(e.target.value)}
-                                />
-                            </div>
+                        {/* Feedback Only */}
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 mb-2">Your Feedback</p>
+                            <Textarea 
+                                placeholder="Provide constructive feedback on what was done well and areas for growth..."
+                                className="min-h-[140px] rounded-2xl border-stone-200 focus:border-primary font-serif p-4"
+                                value={reviewFeedback}
+                                onChange={(e) => setReviewFeedback(e.target.value)}
+                            />
                         </div>
                     </div>
 
                     <DialogFooter className="p-8 bg-stone-50/50 border-t border-stone-100 flex items-center gap-4">
                         <Button 
                             variant="outline" 
-                            className="rounded-full h-12 flex-1 border-stone-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 font-black text-[10px] uppercase tracking-widest"
-                            onClick={() => submitEvaluation('rejected')}
+                            className="rounded-full h-12 border-stone-200 hover:bg-stone-50 font-black text-[10px] uppercase tracking-widest"
+                            onClick={() => setSelectedPortfolio(null)}
                             disabled={submitting}
                         >
-                            <XCircle className="size-4 mr-2" />
-                            Request Iteration
+                            Cancel
                         </Button>
                         <Button 
-                            className="rounded-full h-12 flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-200"
-                            onClick={() => submitEvaluation('approved')}
-                            disabled={submitting || evaluationScore === 0}
+                            className="rounded-full h-12 flex-1 bg-primary hover:bg-primary-dark text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20"
+                            onClick={submitReview}
+                            disabled={submitting || !reviewFeedback.trim()}
                         >
                             {submitting ? (
                                 <Loader2 className="size-4 animate-spin mr-2" />
                             ) : (
-                                <CheckCircle2 className="size-4 mr-2" />
+                                <MessageSquare className="size-4 mr-2" />
                             )}
-                            Approve Submission
+                            Send Feedback
                         </Button>
                     </DialogFooter>
                 </DialogContent>

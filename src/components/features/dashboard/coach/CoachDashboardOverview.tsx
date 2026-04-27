@@ -4,20 +4,24 @@ import { useState, useEffect } from "react";
 import { 
     Users, 
     Network, 
-    GraduationCap, 
     ArrowRight,
     Loader2,
     Calendar,
     Building2,
     Clock,
-    FileText,
     ArrowUpRight,
-    Search
+    Search,
+    Check
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { FellowProgressService } from "@/services/FellowProgressService";
 import { FellowService } from "@/services/FellowService";
+import { CoachService } from "@/services/CoachService";
+import { StorageService } from "@/services/storageService";
+import { companyService } from "@/services/companyService";
+import { CohortService } from "@/services/CohortService";
 import { PeerCircle, Company, Cohort, Portfolio, FellowProfile } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -36,27 +40,37 @@ export default function CoachDashboardOverview() {
             if (!user || user.role !== 'COACH') return;
 
             try {
-                const profile = await CoachService.getCoachByUserId(user.uid);
+                const profile = await CoachService.getCoachByUserId(user.id);
                 setCoachProfile(profile);
 
                 if (profile) {
-                    const circleData = await CoachService.getPeerCirclesByCoachId(user.uid);
+                    const circleData = await CoachService.getPeerCirclesByCoachId(user.id);
                     setCircles(circleData);
 
                     // Fetch company and cohort names
-                    const companyIds = Array.from(new Set(circleData.map(c => c.company_id)));
-                    const cohortIds = Array.from(new Set(circleData.map(c => c.cohort_id)));
+                    const companyIds = Array.from(new Set(circleData.map((c: PeerCircle) => c.company_id)));
+                    const cohortIds = Array.from(new Set(circleData.map((c: PeerCircle) => c.cohort_id)));
 
                     const [companyData, cohortData] = await Promise.all([
                         Promise.all(companyIds.map(id => companyService.getById(id))),
-                        Promise.all(cohortIds.map(id => CohortService.getById(id)))
+                        Promise.all(cohortIds.map(id => CohortService.getCohortById(id)))
                     ]);
+
+                    const companyMap = companyData.reduce((acc: Record<string, Company>, company) => {
+                        if (company) acc[company.id] = company;
+                        return acc;
+                    }, {} as Record<string, Company>);
+
+                    const cohortMap = cohortData.reduce((acc: Record<string, Cohort>, cohort) => {
+                        if (cohort) acc[cohort.id] = cohort;
+                        return acc;
+                    }, {} as Record<string, Cohort>);
 
                     setCompanies(companyMap);
                     setCohorts(cohortMap);
 
                     // Fetch Fellows and Portfolios for smart metrics
-                    const allFellowIds = Array.from(new Set(circleData.flatMap(c => c.fellow_ids)));
+                    const allFellowIds = Array.from(new Set(circleData.flatMap((c: PeerCircle) => c.fellow_ids))) as string[];
                     if (allFellowIds.length > 0) {
                         const [fellowData, portfolioData] = await Promise.all([
                             FellowService.getFellowsByIds(allFellowIds),
@@ -283,10 +297,4 @@ export default function CoachDashboardOverview() {
     );
 }
 
-function Badge({ children, className }: { children: React.ReactNode, className?: string }) {
-    return (
-        <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-semibold", className)}>
-            {children}
-        </span>
-    );
-}
+

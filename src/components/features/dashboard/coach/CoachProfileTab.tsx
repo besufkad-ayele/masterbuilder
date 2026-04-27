@@ -27,7 +27,7 @@ export default function CoachProfileTab() {
             if (!user) return;
 
             try {
-                const data = await CoachService.getCoachByUserId(user.uid);
+                const data = await CoachService.getCoachByUserId(user.id);
                 setProfile(data);
             } catch (error) {
                 console.error("Error fetching coach profile:", error);
