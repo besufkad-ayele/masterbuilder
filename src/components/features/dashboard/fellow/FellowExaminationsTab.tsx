@@ -5,6 +5,8 @@ import { useFellowDashboard } from "@/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Loader2,
     FileText,
@@ -15,7 +17,8 @@ import {
     GraduationCap,
     Clock,
     PlayCircle,
-    Award
+    Award,
+    Edit3
 } from "lucide-react";
 import { ExamService, Exam, ExamAttempt } from "@/services/ExamService";
 import { cn } from "@/lib/utils";
@@ -25,7 +28,7 @@ interface FellowExaminationsTabProps {
 }
 
 export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTabProps) {
-    const { data: dashboardData, loading: dashboardLoading } = useFellowDashboard(fellowId);
+    const { data: dashboardData, loading: dashboardLoading, refresh: refreshDashboard } = useFellowDashboard(fellowId);
     const [exams, setExams] = useState<Exam[]>([]);
     const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
     const [loadingExams, setLoadingExams] = useState(true);
@@ -71,7 +74,11 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
             const compPortfolios = dashboardData.portfolios.filter(p => p.competency_id === comp.id);
             const isPortfolioSubmitted = hasRequiredPortfolios || compPortfolios.some(p => p.status === 'submitted' || p.status === 'approved');
 
-            const hasAttempt = attempts.find(a => exams.find(e => e.competency_id === comp.id)?.id === a.exam_id);
+            // Find attempt by digital exam ID OR direct competency ID (manual insertion)
+            const compExam = exams.find(e => e.competency_id === comp.id);
+            const hasAttempt = attempts.find(a => 
+                (compExam && a.exam_id === compExam.id) || a.exam_id === comp.id
+            );
 
             statusMap[comp.id] = {
                 unlocked: isPortfolioSubmitted,
@@ -96,27 +103,36 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
         setIsSubmitting(true);
         try {
             let correctCount = 0;
+            let mcqCount = 0;
+            const hasWritten = selectedExam.questions.some(q => q.type === 'written');
+
             selectedExam.questions.forEach(q => {
-                if (userAnswers[q.id] === q.correct_option_index) {
-                    correctCount++;
+                if (q.type === 'multiple_choice') {
+                    mcqCount++;
+                    if (userAnswers[q.id] === q.correct_option_index) {
+                        correctCount++;
+                    }
                 }
             });
 
-            const score = Math.round((correctCount / selectedExam.questions.length) * 100);
+            const score = mcqCount > 0 ? Math.round((correctCount / mcqCount) * 100) : 100;
             const passed = score >= 75;
 
             await ExamService.submitExamAttempt({
                 exam_id: selectedExam.id,
                 user_id: fellowId,
                 score,
-                passed
+                passed,
+                answers: userAnswers,
+                status: hasWritten ? 'submitted' : 'graded'
             });
 
             setExamResult({ score, passed });
 
-            // Refresh attempts
+            // Refresh local state and centralized dashboard data
             const updatedAttempts = await ExamService.getAttemptsByUser(fellowId);
             setAttempts(updatedAttempts);
+            await refreshDashboard();
         } catch (error) {
             console.error("Error submitting exam:", error);
         } finally {
@@ -206,35 +222,60 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
 
                 <Card className="rounded-[2.5rem] border-2 border-[#E8E4D8] overflow-hidden">
                     <CardHeader className="bg-muted/30 py-8 px-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
+                                {question.type === 'multiple_choice' ? 'Multiple Choice' : 'Written Response'}
+                            </div>
+                        </div>
                         <h3 className="text-2xl font-serif italic text-foreground leading-relaxed">{question.text}</h3>
                     </CardHeader>
                     <CardContent className="p-10 space-y-4">
-                        {question.options.map((option, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setUserAnswers({ ...userAnswers, [question.id]: idx })}
-                                className={cn(
-                                    "w-full text-left p-6 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between group",
-                                    userAnswers[question.id] === idx
-                                        ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
-                                        : "border-[#E8E4D8] hover:border-primary/40 hover:bg-[#FDFCF6]"
-                                )}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className={cn(
-                                        "size-8 rounded-full border-2 flex items-center justify-center text-xs font-black transition-colors",
-                                        userAnswers[question.id] === idx ? "bg-primary text-white border-primary" : "border-[#E8E4D8] text-[#8B9B7E] group-hover:border-primary/40 group-hover:text-primary"
-                                    )}>
-                                        {String.fromCharCode(65 + idx)}
-                                    </div>
-                                    <span className={cn(
-                                        "font-medium",
-                                        userAnswers[question.id] === idx ? "text-[#1B4332]" : "text-foreground"
-                                    )}>{option}</span>
+                        {question.type === 'multiple_choice' ? (
+                            <div className="space-y-4">
+                                {question.options.map((option, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setUserAnswers({ ...userAnswers, [question.id]: idx })}
+                                        className={cn(
+                                            "w-full text-left p-6 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between group",
+                                            userAnswers[question.id] === idx
+                                                ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                                                : "border-[#E8E4D8] hover:border-primary/40 hover:bg-[#FDFCF6]"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={cn(
+                                                "size-8 rounded-full border-2 flex items-center justify-center text-xs font-black transition-colors",
+                                                userAnswers[question.id] === idx ? "bg-primary text-white border-primary" : "border-[#E8E4D8] text-[#8B9B7E] group-hover:border-primary/40 group-hover:text-primary"
+                                            )}>
+                                                {String.fromCharCode(65 + idx)}
+                                            </div>
+                                            <span className={cn(
+                                                "font-medium",
+                                                userAnswers[question.id] === idx ? "text-[#1B4332]" : "text-foreground"
+                                            )}>{option}</span>
+                                        </div>
+                                        {userAnswers[question.id] === idx && <CheckCircle2 className="size-5 text-primary" />}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <p className="text-xs text-[#1B4332]/60 font-medium italic">
+                                    Provide a detailed response to the prompt above. Your answer will be reviewed by the academic team.
+                                </p>
+                                <Textarea 
+                                    value={userAnswers[question.id] || ""}
+                                    onChange={e => setUserAnswers({ ...userAnswers, [question.id]: e.target.value })}
+                                    placeholder="Type your answer here..."
+                                    className="min-h-[200px] rounded-[2rem] border-2 border-[#E8E4D8] p-8 text-lg font-serif italic focus-visible:ring-primary/20"
+                                />
+                                <div className="flex items-center justify-end gap-2 text-[#8B9B7E]">
+                                    <Edit3 className="size-4" />
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Essay Part</span>
                                 </div>
-                                {userAnswers[question.id] === idx && <CheckCircle2 className="size-5 text-primary" />}
-                            </button>
-                        ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -289,7 +330,10 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                 {dashboardData?.competencies.map(comp => {
                     const status = competencyStatusMap[comp.id];
                     const exam = exams.find(e => e.competency_id === comp.id);
-                    const attempt = attempts.find(a => a.exam_id === exam?.id);
+                    const attempt = attempts.find(a => 
+                        (exam && a.exam_id === exam.id) || a.exam_id === comp.id
+                    );
+                    const isPortalOpen = exam?.is_portal_open ?? false;
 
                     // User requirement: "the do portfolio is not submitted yet not to be visible"
                     if (!status?.unlocked && !status?.completed) return null;
@@ -304,7 +348,7 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                 "rounded-[2.5rem] border-2 transition-all duration-500 overflow-hidden relative group",
                                 status?.completed
                                     ? "bg-[#1B4332]/5 border-[#1B4332]/20"
-                                    : status?.unlocked
+                                    : (status?.unlocked && isPortalOpen)
                                         ? "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-2xl"
                                         : "bg-stone-50 border-stone-200 opacity-80"
                             )}
@@ -319,8 +363,10 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                     </div>
                                     {status?.completed ? (
                                         <Badge className="bg-emerald-500/10 text-emerald-700 border-none rounded-lg px-3 py-1 font-black text-[10px] uppercase">Mastered</Badge>
-                                    ) : status?.unlocked ? (
+                                    ) : (status?.unlocked && isPortalOpen) ? (
                                         <Badge className="bg-blue-500/10 text-blue-700 border-none rounded-lg px-3 py-1 font-black text-[10px] uppercase">Unlocked</Badge>
+                                    ) : status?.unlocked && !isPortalOpen ? (
+                                        <Badge className="bg-amber-500/10 text-amber-700 border-none rounded-lg px-3 py-1 font-black text-[10px] uppercase">Portal Closed</Badge>
                                     ) : (
                                         <Badge className="bg-stone-200 text-stone-500 border-none rounded-lg px-3 py-1 font-black text-[10px] uppercase">Locked</Badge>
                                     )}
@@ -333,14 +379,14 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                     <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#8B9B7E]">
                                         <span>Status</span>
                                         <span className={cn(status?.completed ? "text-emerald-600" : "text-amber-600")}>
-                                            {status?.reason}
+                                            {status?.completed ? "Mastery Achieved" : (status?.unlocked && !isPortalOpen) ? "Awaiting Portal Opening" : status?.reason}
                                         </span>
                                     </div>
                                     <div className="h-1.5 w-full bg-[#E8E4D8] rounded-full overflow-hidden">
                                         <div
                                             className={cn(
                                                 "h-full transition-all duration-1000",
-                                                status?.completed ? "bg-emerald-500 w-full" : status?.unlocked ? "bg-blue-500 w-[75%]" : "bg-stone-300 w-[10%]"
+                                                status?.completed ? "bg-emerald-500 w-full" : (status?.unlocked && isPortalOpen) ? "bg-blue-500 w-[75%]" : "bg-stone-300 w-[10%]"
                                             )}
                                         />
                                     </div>
@@ -362,22 +408,28 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
 
                                 {!status?.completed && (
                                     <Button
-                                        disabled={!status?.unlocked || !exam}
+                                        disabled={!status?.unlocked || !exam || !isPortalOpen || exam.questions.length === 0}
                                         onClick={() => exam && handleStartExam(exam)}
                                         className={cn(
                                             "w-full h-12 rounded-2xl font-bold transition-all flex items-center justify-center gap-2",
-                                            status?.unlocked
+                                            (status?.unlocked && isPortalOpen && exam && exam.questions.length > 0)
                                                 ? "bg-[#1B4332] hover:bg-[#2D6A4F] text-white shadow-lg shadow-primary/10"
                                                 : "bg-[#E8E4D8] text-[#8B9B7E] grayscale"
                                         )}
                                     >
-                                        {!status?.unlocked ? <Lock size={16} /> : <PlayCircle size={16} />}
-                                        {status?.unlocked ? "Begin Final Examination" : "Assessment Locked"}
+                                        {!status?.unlocked || !isPortalOpen || (exam && exam.questions.length === 0) ? <Lock size={16} /> : <PlayCircle size={16} />}
+                                        {(status?.unlocked && isPortalOpen && exam && exam.questions.length > 0) 
+                                            ? "Begin Final Examination" 
+                                            : !isPortalOpen && status?.unlocked 
+                                                ? "Portal Closed" 
+                                                : (exam && exam.questions.length === 0)
+                                                    ? "Exam Under Construction"
+                                                    : "Assessment Locked"}
                                     </Button>
                                 )}
                             </CardContent>
 
-                            {!status?.unlocked && (
+                            {(!status?.unlocked || !isPortalOpen) && !status?.completed && (
                                 <div className="absolute inset-0 bg-stone-50/10 backdrop-blur-[1px] pointer-events-none" />
                             )}
                         </Card>

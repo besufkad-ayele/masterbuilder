@@ -66,7 +66,7 @@ export default function AdminPortfolioEvaluationTab() {
                   <p className="text-sm font-semibold text-foreground">Mentor feedback</p>
                   <p className="text-xs text-muted-foreground mt-2">
                     Evidence demonstrates high alignment with "Stakeholder Empathy" criteria. Recommend
-                    score 85/100.
+                    score 42/50.
                   </p>
                   <Button size="sm" variant="outline" className="mt-4 rounded-full">
                     Request iteration

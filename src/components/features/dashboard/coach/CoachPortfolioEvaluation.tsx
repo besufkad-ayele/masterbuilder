@@ -145,9 +145,8 @@ export default function CoachPortfolioEvaluation() {
         setSubmitting(true);
         try {
             const user = StorageService.getCurrentUser();
-            // Keep the current status, just add feedback
             await FellowProgressService.updatePortfolioReview(selectedPortfolio.id, {
-                status: selectedPortfolio.status as PortfolioStatus,
+                status: selectedPortfolio.status as PortfolioStatus, // Keep original status
                 feedback: reviewFeedback,
                 reviewed_by: user?.id
             });
@@ -155,7 +154,11 @@ export default function CoachPortfolioEvaluation() {
             // Update local state
             setPortfolios(prev => prev.map(p => 
                 p.id === selectedPortfolio.id 
-                ? { ...p, feedback: reviewFeedback, updated_at: new Date().toISOString() } 
+                ? { 
+                    ...p, 
+                    feedback: reviewFeedback, 
+                    updated_at: new Date().toISOString() 
+                } 
                 : p
             ));
             

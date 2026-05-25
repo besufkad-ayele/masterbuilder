@@ -14,9 +14,11 @@ import {
 
 export interface ExamQuestion {
     id: string;
+    type: 'multiple_choice' | 'written';
     text: string;
-    options: string[];
-    correct_option_index: number;
+    options: string[]; // Only for multiple_choice
+    correct_option_index?: number; // Only for multiple_choice
+    correct_written_answer?: string; // Optional reference for auto-grading or admin review
 }
 
 export interface Exam {
@@ -25,6 +27,7 @@ export interface Exam {
     cohort_id: string;
     title: string;
     questions: ExamQuestion[];
+    is_portal_open: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -35,7 +38,10 @@ export interface ExamAttempt {
     user_id: string;
     score: number;
     passed: boolean;
+    answers: Record<string, any>; // Store actual answers for review
     submitted_at: string;
+    status: 'submitted' | 'graded';
+    graded_by?: string;
 }
 
 export const ExamService = {
@@ -95,5 +101,13 @@ export const ExamService = {
         const q = query(collection(db, 'exam_attempts'), where('user_id', '==', userId));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExamAttempt));
+    },
+
+    async updateExamAttempt(attemptId: string, updates: Partial<ExamAttempt>): Promise<void> {
+        const ref = doc(db, 'exam_attempts', attemptId);
+        await updateDoc(ref, {
+            ...updates,
+            updated_at: new Date().toISOString()
+        });
     }
 };

@@ -29,6 +29,8 @@ import {
     Award,
     ChevronDown,
     Menu,
+    Check,
+    Edit2,
 } from "lucide-react";
 import { FellowProgressService } from "@/services/FellowProgressService";
 import { ExamService, ExamAttempt } from "@/services/ExamService";
@@ -399,12 +401,12 @@ function PortfolioReviewPanel({
                     </div>
                     <div className="space-y-2">
                         <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary px-1">
-                            Performance Score (0-100)
+                            Performance Score (0-50)
                         </label>
                         <Input
                             type="number"
                             min="0"
-                            max="100"
+                            max="50"
                             value={score}
                             onChange={(e) => setScore(Number(e.target.value))}
                             className="rounded-xl border-2 border-[#E8E4D8] h-11"
@@ -762,12 +764,50 @@ function DetailExamView({
     waveResults,
     waves,
     gmLookup,
+    onUpdateExamScore,
+    onUpdateGroundingScore,
 }: {
     groundingResults: GroundingResult[];
     waveResults: WaveResult[];
     waves: Wave[];
     gmLookup: Record<string, GroundingModule>;
+    onUpdateExamScore: (waveId: string, score: number) => Promise<void>;
+    onUpdateGroundingScore: (resultId: string, score: number) => Promise<void>;
 }) {
+    const [editingWaveId, setEditingWaveId] = useState<string | null>(null);
+    const [editingGroundingId, setEditingGroundingId] = useState<string | null>(null);
+    const [editScore, setEditScore] = useState<number>(0);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleStartEdit = (waveId: string, currentScore: number) => {
+        setEditingWaveId(waveId);
+        setEditScore(currentScore);
+    };
+
+    const handleStartEditGrounding = (resultId: string, currentScore: number) => {
+        setEditingGroundingId(resultId);
+        setEditScore(currentScore);
+    };
+
+    const handleSave = async (waveId: string) => {
+        setIsSaving(true);
+        try {
+            await onUpdateExamScore(waveId, editScore);
+            setEditingWaveId(null);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleSaveGrounding = async (resultId: string) => {
+        setIsSaving(true);
+        try {
+            await onUpdateGroundingScore(resultId, editScore);
+            setEditingGroundingId(null);
+        } finally {
+            setIsSaving(false);
+        }
+    };
     return (
         <div className="space-y-6 sm:space-y-8">
             <SectionHeader
@@ -840,33 +880,73 @@ function DetailExamView({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#E8E4D8]">
-                                {groundingResults.map((r) => {
-                                    const gm = gmLookup[r.grounding_id];
-                                    return (
-                                        <tr key={r.id}>
-                                            <td className="px-4 py-4 font-bold text-sm">
-                                                {gm?.name || "Grounding Module"}
-                                            </td>
-                                            <td className="px-4 py-4 font-black text-lg">
-                                                {r.score ?? 0}%
-                                            </td>
-                                            <td className="px-4 py-4 text-right">
-                                                <Badge
-                                                    className={cn(
-                                                        "rounded-full text-[10px]",
-                                                        r.is_passed
-                                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                                            : "bg-amber-100 text-amber-700 border-amber-200"
+                                    {groundingResults.map((r) => {
+                                        const gm = gmLookup[r.grounding_id];
+                                        const isEditing = editingGroundingId === r.id;
+                                        return (
+                                            <tr key={r.id}>
+                                                <td className="px-4 py-4 font-bold text-sm">
+                                                    {gm?.name || "Grounding Module"}
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    {isEditing ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                max="100"
+                                                                value={editScore}
+                                                                onChange={(e) => setEditScore(Number(e.target.value))}
+                                                                className="w-20 h-8 rounded-lg"
+                                                            />
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleSaveGrounding(r.id)}
+                                                                disabled={isSaving}
+                                                                className="h-8 px-2"
+                                                            >
+                                                                {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setEditingGroundingId(null)}
+                                                                className="h-8 px-2"
+                                                            >
+                                                                <X className="size-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-lg">{r.score ?? 0}%</span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleStartEditGrounding(r.id, r.score || 0)}
+                                                                className="size-6 rounded-full"
+                                                            >
+                                                                <Edit2 className="size-3" />
+                                                            </Button>
+                                                        </div>
                                                     )}
-                                                >
-                                                    {r.status === "completed"
-                                                        ? "Passed"
-                                                        : "In Progress"}
-                                                </Badge>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                                </td>
+                                                <td className="px-4 py-4 text-right">
+                                                    <Badge
+                                                        className={cn(
+                                                            "rounded-full text-[10px]",
+                                                            r.is_passed
+                                                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                                                : "bg-amber-100 text-amber-700 border-amber-200"
+                                                        )}
+                                                    >
+                                                        {r.status === "completed"
+                                                            ? "Passed"
+                                                            : "In Progress"}
+                                                    </Badge>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                             </tbody>
                         </table>
                     </ResponsiveTableCard>
@@ -936,23 +1016,63 @@ function DetailExamView({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[#E8E4D8]">
-                                {waveResults.map((r) => {
-                                    const wave = waves.find((w) => w.id === r.wave_id);
-                                    return (
-                                        <tr key={r.id}>
-                                            <td className="px-4 py-4 font-bold text-sm">
-                                                Wave {wave?.number ?? "?"}:{" "}
-                                                {wave?.name || "Untitled"}
-                                            </td>
-                                            <td className="px-4 py-4 font-black text-lg">
-                                                {r.exam_score}%
-                                            </td>
-                                            <td className="px-4 py-4 text-right font-bold text-primary text-sm">
-                                                {r.competency_avg}%
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                    {waveResults.map((r) => {
+                                        const wave = waves.find((w) => w.id === r.wave_id);
+                                        const isEditing = editingWaveId === r.wave_id;
+                                        return (
+                                            <tr key={r.id}>
+                                                <td className="px-4 py-4 font-bold text-sm">
+                                                    Wave {wave?.number ?? "?"}:{" "}
+                                                    {wave?.name || "Untitled"}
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    {isEditing ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                max="100"
+                                                                value={editScore}
+                                                                onChange={(e) => setEditScore(Number(e.target.value))}
+                                                                className="w-20 h-8 rounded-lg"
+                                                            />
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleSave(r.wave_id)}
+                                                                disabled={isSaving}
+                                                                className="h-8 px-2"
+                                                            >
+                                                                {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => setEditingWaveId(null)}
+                                                                className="h-8 px-2"
+                                                            >
+                                                                <X className="size-3" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black text-lg">{r.exam_score}%</span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleStartEdit(r.wave_id, r.exam_score)}
+                                                                className="size-6 rounded-full"
+                                                            >
+                                                                <Edit2 className="size-3" />
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 text-right font-bold text-primary text-sm">
+                                                    {r.competency_avg}%
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                             </tbody>
                         </table>
                     </ResponsiveTableCard>
@@ -1331,6 +1451,7 @@ function PerformanceBreakdownView({
     compLookup,
     groundingResults,
     examAttempts,
+    onUpdateCompExamScore,
 }: {
     progress: PhaseProgress[];
     portfolios: Portfolio[];
@@ -1338,10 +1459,30 @@ function PerformanceBreakdownView({
     compLookup: Record<string, Competency>;
     groundingResults: GroundingResult[];
     examAttempts: ExamAttempt[];
+    onUpdateCompExamScore: (compId: string, score: number) => Promise<void>;
 }) {
     const [selectedCompId, setSelectedCompId] = React.useState<string | null>(
         null
     );
+    const [isEditingExam, setIsEditingExam] = React.useState(false);
+    const [editExamScore, setEditExamScore] = React.useState(0);
+    const [isSavingExam, setIsSavingExam] = React.useState(false);
+
+    const handleStartEditExam = (currentScore: number) => {
+        // currentScore is out of 100, convert to out of 20 for editing
+        setEditExamScore(Math.round(currentScore / 5));
+        setIsEditingExam(true);
+    };
+
+    const handleSaveExam = async (compId: string) => {
+        setIsSavingExam(true);
+        try {
+            await onUpdateCompExamScore(compId, editExamScore);
+            setIsEditingExam(false);
+        } finally {
+            setIsSavingExam(false);
+        }
+    };
 
     const groundingScore = groundingResults[0]?.score || 0;
 
@@ -1399,7 +1540,7 @@ function PerformanceBreakdownView({
                         doScore,
                         score: biScore,
                         knowContribution: Math.round((knowScore / 100) * 20),
-                        doContribution: Math.round((doScore / 100) * 50),
+                        doContribution: Math.round(doScore),
                     };
                 });
 
@@ -1592,10 +1733,55 @@ function PerformanceBreakdownView({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                        Final Exam
+                                        Final Exam Contribution (Paper/Digital)
                                     </p>
-                                    <p className="text-xl sm:text-2xl font-serif font-black text-foreground">
-                                        {selectedComp.examContribution}/20
+                                    {isEditingExam ? (
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <div className="relative">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    max="20"
+                                                    value={editExamScore}
+                                                    onChange={(e) => setEditExamScore(Number(e.target.value))}
+                                                    className="w-24 h-8 rounded-lg pr-8"
+                                                />
+                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-black">/20</span>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleSaveExam(selectedComp.id)}
+                                                disabled={isSavingExam}
+                                                className="h-8 px-2"
+                                            >
+                                                {isSavingExam ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setIsEditingExam(false)}
+                                                className="h-8 px-2"
+                                            >
+                                                <X className="size-3" />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-xl sm:text-2xl font-serif font-black text-foreground">
+                                                {Math.round(selectedComp.examScore / 5)}/20
+                                            </p>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleStartEditExam(selectedComp.examScore)}
+                                                className="size-6 rounded-full"
+                                            >
+                                                <Edit2 className="size-3" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                    <p className="text-[9px] text-muted-foreground mt-1 italic">
+                                        This value represents the direct 20% weight contribution.
                                     </p>
                                 </div>
                             </div>
@@ -2085,6 +2271,102 @@ export default function FellowProgressTracker({
         }
     };
 
+    const handleUpdateExamScore = async (waveId: string, score: number) => {
+        const result = waveResults.find((r) => r.wave_id === waveId);
+        if (!result) return;
+
+        try {
+            await FellowProgressService.updateWaveResult(result.id, {
+                exam_score: score,
+                // Recalculate final score if needed, or let the service handle it next time
+                final_score: Math.round((result.competency_avg + score + result.grounding_score) / 3),
+            });
+
+            setWaveResults((prev) =>
+                prev.map((r) =>
+                    r.id === result.id
+                        ? {
+                            ...r,
+                            exam_score: score,
+                            final_score: Math.round((r.competency_avg + score + r.grounding_score) / 3),
+                        }
+                        : r
+                )
+            );
+        } catch (e) {
+            alert("Failed to update exam score.");
+        }
+    };
+
+    const handleUpdateGroundingScore = async (resultId: string, score: number) => {
+        try {
+            await FellowProgressService.updateGroundingResult(resultId, {
+                score: score,
+                is_passed: score >= 75,
+            });
+
+            setGroundingResults((prev) =>
+                prev.map((r) =>
+                    r.id === resultId
+                        ? {
+                            ...r,
+                            score: score,
+                            is_passed: score >= 75,
+                        }
+                        : r
+                )
+            );
+        } catch (e) {
+            alert("Failed to update grounding score.");
+        }
+    };
+
+    const handleUpdateCompExamScore = async (compId: string, scoreOutOf20: number) => {
+        // Find existing attempt for this competency
+        const existingAttempt = examAttempts.find((a) => a.exam_id === compId);
+        
+        // Normalize 0-20 to 0-100 for internal consistency
+        const normalizedScore = scoreOutOf20 * 5;
+
+        try {
+            if (existingAttempt) {
+                await ExamService.updateExamAttempt(existingAttempt.id, {
+                    score: normalizedScore,
+                    passed: normalizedScore >= 75,
+                });
+
+                setExamAttempts((prev) =>
+                    prev.map((a) =>
+                        a.id === existingAttempt.id
+                            ? { ...a, score: normalizedScore, passed: normalizedScore >= 75 }
+                            : a
+                    )
+                );
+            } else {
+                // Create a manual attempt record
+                const attemptId = await ExamService.submitExamAttempt({
+                    exam_id: compId,
+                    user_id: userId,
+                    score: normalizedScore,
+                    passed: normalizedScore >= 75,
+                });
+
+                const newAttempt: ExamAttempt = {
+                    id: attemptId,
+                    exam_id: compId,
+                    user_id: userId,
+                    score: normalizedScore,
+                    passed: normalizedScore >= 75,
+                    submitted_at: new Date().toISOString(),
+                };
+
+                setExamAttempts((prev) => [...prev, newAttempt]);
+            }
+        } catch (e) {
+            alert("Failed to update competency exam score.");
+        }
+    };
+
     if (loading) return <LoadingState />;
 
     // Calculate quick stats
@@ -2153,6 +2435,8 @@ export default function FellowProgressTracker({
                         waveResults={waveResults}
                         waves={waveLookup}
                         gmLookup={gmLookup}
+                        onUpdateExamScore={handleUpdateExamScore}
+                        onUpdateGroundingScore={handleUpdateGroundingScore}
                     />
                 );
             case "competency":
@@ -2188,6 +2472,7 @@ export default function FellowProgressTracker({
                         compLookup={compLookup}
                         groundingResults={groundingResults}
                         examAttempts={examAttempts}
+                        onUpdateCompExamScore={handleUpdateCompExamScore}
                     />
                 );
             default:

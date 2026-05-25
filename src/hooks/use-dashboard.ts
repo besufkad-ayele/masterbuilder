@@ -40,7 +40,7 @@ export function useAdminDashboard() {
         CohortService.getAllCohorts(),
         FacilitatorService.getAllFacilitators(),
         companyService.getAll(),
-        CohortService.getMasterCompetencies(),
+        FellowProgressService.getAllCompetencies(),
         groundingService.getModules(),
         firebaseService.notifications.getNotifications('admins', false)
       ]);

@@ -99,7 +99,11 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
           }
 
           const compExam = (fellowState.exams || []).find((e: any) => e.competency_id === comp.id);
-          const compExamAttempt = compExam ? (fellowState.examAttempts || []).find((a: any) => a.exam_id === compExam.id) : null;
+          // Look for attempt by digital exam ID OR direct competency ID (manual insertion)
+          const compExamAttempt = (fellowState.examAttempts || []).find((a: any) => 
+            (compExam && a.exam_id === compExam.id) || a.exam_id === comp.id
+          );
+          const hasExamAttempt = !!compExamAttempt;
           const examScore = compExamAttempt?.score || 0;
 
           const compositeScore = FellowProgressService.calculateCompetencyTotalScore(
@@ -146,7 +150,8 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
             biBreakdown,
             groundingContribution: gScore, // gScore is inherently out of 10
             examContribution: Math.round((examScore / 100) * 20),
-            examScore
+            examScore,
+            hasExamAttempt
           };
         }).sort((a, b) => a.title.localeCompare(b.title));
 
@@ -619,13 +624,13 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                         <div className="flex items-baseline gap-2">
                           <h4 className={cn(
                             "text-3xl font-serif font-bold",
-                            (selectedComp.examContribution || 0) > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
+                            selectedComp.hasExamAttempt ? "text-[#1B4332]" : "text-[#1B4332]/20"
                           )}>
-                            {(selectedComp.examContribution || 0) > 0 ? `${selectedComp.examContribution}/20` : "Not taken yet"}
+                            {selectedComp.hasExamAttempt ? `${selectedComp.examContribution}/20` : "Not taken yet"}
                           </h4>
                         </div>
                       </div>
-                      {(selectedComp.examContribution || 0) > 0 && (
+                      {selectedComp.hasExamAttempt && (
                         <div className="size-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
                           <CheckCircle className="size-5" />
                         </div>
@@ -655,7 +660,7 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                     const totalBIs = selectedComp.biBreakdown?.length || 0;
                     const believePassedCount = selectedComp.biBreakdown?.filter((bi: BreakdownItem) => bi.believePassed).length || 0;
                     const sumKnow = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.knowScore > 0 ? Math.round((bi.knowScore / 100) * 20) : 0), 0) || 0;
-                    const sumDo = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.doScore > 0 ? Math.round((bi.doScore / 100) * 50) : 0), 0) || 0;
+                    const sumDo = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.doScore || 0), 0) || 0;
                     const sumScore = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.score || 0), 0) || 0;
 
                     const avgKnow = totalBIs > 0 ? Math.round(sumKnow / totalBIs) : 0;
@@ -716,7 +721,7 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                                     "text-lg font-serif font-bold",
                                     bi.doScore > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
                                   )}>
-                                    {bi.doScore > 0 ? Math.round((bi.doScore / 100) * 50) : "—"}
+                                    {bi.doScore > 0 ? bi.doScore : "—"}
                                   </span>
                                 </td>
                                 <td className="p-6 text-center">

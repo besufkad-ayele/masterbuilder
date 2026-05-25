@@ -59,6 +59,22 @@ export const FellowProgressService = {
         return s.docs.map(d => ({ id: d.id, ...d.data() } as WaveResult));
     },
 
+    async updateWaveResult(resultId: string, updates: Partial<WaveResult>): Promise<void> {
+        const ref = doc(db, 'wave_results', resultId);
+        await updateDoc(ref, {
+            ...updates,
+            updated_at: new Date().toISOString(),
+        });
+    },
+
+    async updateGroundingResult(resultId: string, updates: Partial<GroundingResult>): Promise<void> {
+        const ref = doc(db, 'grounding_results', resultId);
+        await updateDoc(ref, {
+            ...updates,
+            updated_at: new Date().toISOString(),
+        });
+    },
+
     async getAllBehavioralIndicators(): Promise<BehavioralIndicator[]> {
         // Get standalone behavioral indicators
         const biSnapshot = await getDocs(collection(db, 'behavioral_indicators'));
@@ -188,9 +204,9 @@ export const FellowProgressService = {
 
         // 3. Do (50%)
         // Find the first approved portfolio specifically for this BI
-        // User mentioned "only one of it pass the evaluation and get scored"
+        // Portfolio score is now entered directly out of 50 by admin
         const approvedPortfolio = portfolios.find(p => p.status === 'approved');
-        const doScore = approvedPortfolio ? ((approvedPortfolio.score || 0) / 100) * 50 : 0;
+        const doScore = approvedPortfolio ? (approvedPortfolio.score || 0) : 0;
 
         // Returns score out of 70 (Know 20 + Do 50)
         return Math.min(Math.round(knowScore + doScore), 70);
