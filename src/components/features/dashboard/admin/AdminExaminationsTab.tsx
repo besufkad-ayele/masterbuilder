@@ -432,8 +432,8 @@ export default function AdminExaminationsTab() {
                           <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Question Type</label>
                           <Select 
                             value={question.type} 
-                            onValueChange={(val: 'multiple_choice' | 'written') => handleUpdateQuestion(question.id, { 
-                              type: val,
+                            onValueChange={(val) => handleUpdateQuestion(question.id, { 
+                              type: val as 'multiple_choice' | 'written',
                               options: val === 'multiple_choice' ? ["", "", "", ""] : [],
                               correct_option_index: val === 'multiple_choice' ? 0 : undefined
                             })}

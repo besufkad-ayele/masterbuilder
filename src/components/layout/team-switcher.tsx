@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ChevronsUpDown, Plus } from "lucide-react"
 
+import Image from "next/image"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +25,7 @@ export function TeamSwitcher({
 }: {
   teams: {
     name: string
-    logo: React.ElementType
+    logo: React.ElementType | string
     plan: string
   }[]
 }) {
@@ -35,6 +36,8 @@ export function TeamSwitcher({
     return null
   }
 
+  const LogoComponent = activeTeam.logo
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -44,8 +47,12 @@ export function TeamSwitcher({
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <activeTeam.logo className="size-4" />
+              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
+                {typeof LogoComponent === 'string' ? (
+                  <Image src={LogoComponent} alt={activeTeam.name} width={32} height={32} className="size-full object-cover" />
+                ) : (
+                  <LogoComponent className="size-4" />
+                )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{activeTeam.name}</span>
@@ -63,19 +70,26 @@ export function TeamSwitcher({
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Teams
             </DropdownMenuLabel>
-            {teams.map((team, index) => (
-              <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
-                className="gap-2 p-2"
-              >
-                <div className="flex size-6 items-center justify-center rounded-md border">
-                  <team.logo className="size-3.5 shrink-0" />
-                </div>
-                {team.name}
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
+            {teams.map((team, index) => {
+              const TeamLogo = team.logo
+              return (
+                <DropdownMenuItem
+                  key={team.name}
+                  onClick={() => setActiveTeam(team)}
+                  className="gap-2 p-2"
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border overflow-hidden">
+                    {typeof TeamLogo === 'string' ? (
+                      <Image src={TeamLogo} alt={team.name} width={24} height={24} className="size-full object-cover" />
+                    ) : (
+                      <TeamLogo className="size-3.5 shrink-0" />
+                    )}
+                  </div>
+                  {team.name}
+                  <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                </DropdownMenuItem>
+              )
+            })}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 p-2">
               <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">

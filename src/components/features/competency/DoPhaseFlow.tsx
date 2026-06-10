@@ -50,6 +50,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
     const [portfolios, setPortfolios] = useState<Portfolio[]>([]); // Using the real Portfolio type
     const [loadingPortfolios, setLoadingPortfolios] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [evidenceError, setEvidenceError] = useState<string | null>(null);
     const [currentStar, setCurrentStar] = useState({
         situation: "",
         task: "",
@@ -61,6 +62,21 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
         null
     );
     const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
+
+    const isGoogleDriveLink = (value: string) => {
+        try {
+            const url = new URL(value.trim());
+            const hostname = url.hostname.toLowerCase();
+            return (
+                hostname === "drive.google.com" ||
+                hostname.endsWith(".drive.google.com") ||
+                hostname === "docs.google.com" ||
+                hostname.endsWith(".docs.google.com")
+            );
+        } catch {
+            return false;
+        }
+    };
 
     // Fetch existing portfolios on mount
     useEffect(() => {
@@ -91,6 +107,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
     }, [userId, biId]);
 
     const handleAddPortfolio = async () => {
+        setEvidenceError(null);
         if (
             !currentStar.situation ||
             !currentStar.task ||
@@ -98,6 +115,16 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             !currentStar.result
         )
             return;
+
+        if (!currentStar.evidenceUrl.trim()) {
+            setEvidenceError("Evidence link is required");
+            return;
+        }
+
+        if (!isGoogleDriveLink(currentStar.evidenceUrl)) {
+            setEvidenceError("Insert Google Drive link");
+            return;
+        }
 
         if (portfolios.length >= 3 && !editingPortfolioId) return;
 
@@ -148,6 +175,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             }
             
             setCurrentStar({ situation: "", task: "", action: "", result: "", evidenceUrl: "" });
+            setEvidenceError(null);
         } catch (error) {
             console.error("Failed to save portfolio", error);
         } finally {
@@ -185,6 +213,11 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
         });
         // Scroll to form
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleEditFromReview = (portfolio: Portfolio) => {
+        handleEditPortfolio(portfolio);
+        setStep("create");
     };
 
     const handleCancelEdit = () => {
@@ -356,20 +389,35 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                             <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1B4332]/30" />
                                             <input
                                                 type="url"
+                                                required
                                                 value={currentStar.evidenceUrl}
-                                                onChange={(e) =>
-                                                    setCurrentStar((prev) => ({ ...prev, evidenceUrl: e.target.value }))
-                                                }
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setCurrentStar((prev) => ({ ...prev, evidenceUrl: value }));
+                                                    if (!value.trim()) {
+                                                        setEvidenceError("Evidence link is required");
+                                                    } else if (isGoogleDriveLink(value)) {
+                                                        setEvidenceError(null);
+                                                    } else {
+                                                        setEvidenceError("Insert Google Drive link");
+                                                    }
+                                                }}
                                                 placeholder="https://drive.google.com/..."
                                                 className="w-full bg-white border border-[#E8E4D8] rounded-2xl pl-12 pr-4 py-4 focus:ring-2 focus:ring-[#C5A059]/20 focus:border-[#C5A059] transition-all outline-none text-sm"
                                             />
                                         </div>
+                                        <p className={cn(
+                                            "text-[10px] font-medium",
+                                            evidenceError ? "text-red-600" : "text-[#1B4332]/50"
+                                        )}>
+                                            {evidenceError || "Use a Google Drive link and make sure the file is shared with anyone who has the link."}
+                                        </p>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={handleAddPortfolio}
-                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result || isSaving}
+                                    disabled={!currentStar.situation || !currentStar.task || !currentStar.action || !currentStar.result || !currentStar.evidenceUrl.trim() || isSaving || !isGoogleDriveLink(currentStar.evidenceUrl)}
                                     className="w-full bg-[#1B4332] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#1B4332]/90 disabled:opacity-20 transition-all flex items-center justify-center gap-2"
                                 >
                                     {isSaving ? (
@@ -455,6 +503,40 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                                     <p className="text-[10px] text-[#1B4332]/40">{p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Draft'}</p>
                                                 </div>
                                                 <p className="text-xs text-[#1B4332]/70 line-clamp-2 italic mb-2">"{p.star_situation}"</p>
+                                                {(p.feedback || p.reviewed_by || p.reviewed_at) && (
+                                                    <div className="mt-3 p-3 rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8]">
+                                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                                            <span className="text-[10px] uppercase font-black text-[#C5A059]">
+                                                                Reviewer Feedback
+                                                            </span>
+                                                            {p.reviewed_by && (
+                                                                <span className="text-[10px] uppercase font-bold text-[#1B4332]/40">
+                                                                    {p.reviewed_by}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-[#1B4332]/80 whitespace-pre-wrap">
+                                                            {p.feedback || "No written feedback was attached to this review."}
+                                                        </p>
+                                                        {p.reviewed_at && (
+                                                            <p className="text-[10px] text-[#1B4332]/40 mt-2">
+                                                                Reviewed on {new Date(p.reviewed_at).toLocaleDateString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {p.status === 'rejected' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditFromReview(p);
+                                                        }}
+                                                        className="mt-3 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#1B4332] hover:text-[#C5A059] underline underline-offset-4"
+                                                    >
+                                                        Edit and resubmit
+                                                    </button>
+                                                )}
                                                 {p.evidence_urls && p.evidence_urls.length > 0 && (
                                                     <a
                                                         href={p.evidence_urls[0]}

@@ -18,6 +18,10 @@ const dmSerifDisplay = DM_Serif_Display({
 export const metadata: Metadata = {
   title: "Leadership Development Program | The Leadership Cycle",
   description: "Leading platform for competency-based workplace success training.",
+  icons: {
+    icon: "/mbllogo.png",
+    apple: "/mbllogo.png",
+  },
 };
 
 export default function RootLayout({

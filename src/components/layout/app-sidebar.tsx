@@ -34,9 +34,9 @@ import { StorageService } from "@/services/storageService"
 const data = {
   teams: [
     {
-      name: "Lead Life",
-      logo: ShieldCheck,
-      plan: "Governance",
+      name: "Master Builder",
+      logo: "/mbllogo.png",
+      plan: "Leadership Program",
     },
   ],
   navMain: [

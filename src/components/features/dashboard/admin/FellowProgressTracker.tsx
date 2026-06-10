@@ -27,6 +27,7 @@ import {
     Award as AwardIcon,
     TrendingUp,
     Award,
+    ShieldCheck,
     ChevronDown,
     Menu,
     Check,
@@ -159,8 +160,53 @@ function PortfolioView({
     compLookup: Record<string, Competency>;
     onReview: (p: Portfolio) => void;
 }) {
-    if (portfolios.length === 0)
-        return <EmptyState message="No portfolios submitted yet." />;
+    // Local filter state
+    const [compFilter, setCompFilter] = useState<string>("all");
+    const [biFilter, setBiFilter] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+
+    // Base filter: map the status filter to one-or-more statuses
+    const mapStatusToSet = (key: string) => {
+        switch (key) {
+            case 'submitted':
+                return new Set(['submitted', 'under_review', 'resubmitted']);
+            case 'draft':
+                return new Set(['draft']);
+            case 'approved':
+                return new Set(['approved']);
+            case 'rejected':
+                return new Set(['rejected']);
+            case 'all':
+            default:
+                return null; // null means include all
+        }
+    };
+
+    const statusSet = mapStatusToSet(statusFilter);
+
+    // Filter portfolios according to selected filters
+    const filtered = portfolios.filter((p) => {
+        if (statusSet && !statusSet.has(p.status)) return false;
+        if (compFilter !== 'all') {
+            const bi = biLookup[p.behavioral_indicator_id];
+            if (!bi || bi.competency_id !== compFilter) return false;
+        }
+        if (biFilter !== 'all' && p.behavioral_indicator_id !== biFilter) return false;
+        return true;
+    });
+
+    // Sort by competency title then BI title for predictable ordering
+    const sorted = filtered.sort((a, b) => {
+        const biA = biLookup[a.behavioral_indicator_id];
+        const biB = biLookup[b.behavioral_indicator_id];
+        const compA = biA ? compLookup[biA.competency_id]?.title || '' : '';
+        const compB = biB ? compLookup[biB.competency_id]?.title || '' : '';
+        if (compA.toLowerCase() < compB.toLowerCase()) return -1;
+        if (compA.toLowerCase() > compB.toLowerCase()) return 1;
+        const biTitleA = biA?.title || '';
+        const biTitleB = biB?.title || '';
+        return biTitleA.toLowerCase().localeCompare(biTitleB.toLowerCase());
+    });
 
     const statusBadgeClass = (status: string) =>
         cn(
@@ -182,94 +228,161 @@ function PortfolioView({
                 description="Review STAR submissions and evidence."
                 color="bg-emerald-100 text-emerald-700"
             />
-            <ResponsiveTableCard
-                mobileCards={portfolios.map((p) => {
-                    const bi = biLookup[p.behavioral_indicator_id];
-                    const comp = bi ? compLookup[bi.competency_id] : null;
-                    return (
-                        <div
-                            key={p.id}
-                            className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white space-y-3"
-                        >
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-[9px] font-black uppercase text-primary/60 block">
-                                        {comp?.title || "Unknown Comp"}
-                                    </span>
-                                    <span className="font-bold text-foreground text-sm leading-tight block mt-0.5">
-                                        {bi?.title || "Unknown BI"}
-                                    </span>
-                                </div>
-                                <Badge className={statusBadgeClass(p.status)}>
-                                    {p.status.replace("_", " ")}
-                                </Badge>
-                            </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onReview(p)}
-                                className="rounded-full h-9 font-serif font-bold italic text-xs w-full"
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <label className="text-[10px] font-black uppercase text-muted-foreground">Filter:</label>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
+                    >
+                        <option value="submitted">Submitted (Pending)</option>
+                        <option value="draft">Drafts</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="all">All</option>
+                    </select>
+
+                    <select
+                        value={compFilter}
+                        onChange={(e) => { setCompFilter(e.target.value); setBiFilter('all'); }}
+                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
+                    >
+                        <option value="all">All Competencies</option>
+                        {Object.values(compLookup).map((c) => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={biFilter}
+                        onChange={(e) => setBiFilter(e.target.value)}
+                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
+                    >
+                        <option value="all">All Behavioral Indicators</option>
+                        {Object.values(biLookup)
+                            .filter((b) => compFilter === 'all' || b.competency_id === compFilter)
+                            .map((b) => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                    </select>
+                </div>
+            </div>
+
+            {sorted.length === 0 ? (
+                <EmptyState message="No portfolios match the selected filters." />
+            ) : (
+                <ResponsiveTableCard
+                    mobileCards={sorted.map((p) => {
+                        const bi = biLookup[p.behavioral_indicator_id];
+                        const comp = bi ? compLookup[bi.competency_id] : null;
+                        return (
+                            <div
+                                key={p.id}
+                                className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white space-y-3"
                             >
-                                Review Submission
-                            </Button>
-                        </div>
-                    );
-                })}
-            >
-                <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-muted/50 border-b-2 border-[#E8E4D8]">
-                        <tr>
-                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                Competency / BI
-                            </th>
-                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                Status
-                            </th>
-                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E8E4D8]">
-                        {portfolios.map((p) => {
-                            const bi = biLookup[p.behavioral_indicator_id];
-                            const comp = bi ? compLookup[bi.competency_id] : null;
-                            return (
-                                <tr
-                                    key={p.id}
-                                    className="hover:bg-muted/5 transition-colors"
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[9px] font-black uppercase text-primary/60 block">
+                                            {comp?.title || "Unknown Comp"}
+                                        </span>
+                                        <span className="font-bold text-foreground text-sm leading-tight block mt-0.5">
+                                            {bi?.title || "Unknown BI"}
+                                        </span>
+                                        {p.star_result && (
+                                            <p className="text-xs text-[#1B4332]/60 mt-1 line-clamp-2">{p.star_result}</p>
+                                        )}
+                                        {typeof p.score !== 'undefined' && p.score !== null && (
+                                            <div className="mt-2">
+                                                <span className="text-[10px] font-black text-primary mr-2">Score:</span>
+                                                <span className="font-bold">{p.score}/50</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Badge className={statusBadgeClass(p.status)}>
+                                        {p.status.replace("_", " ")}
+                                    </Badge>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onReview(p)}
+                                    className="rounded-full h-9 font-serif font-bold italic text-xs w-full"
                                 >
-                                    <td className="px-4 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase text-primary/60">
-                                                {comp?.title || "Unknown Comp"}
-                                            </span>
-                                            <span className="font-bold text-foreground line-clamp-1 text-sm">
-                                                {bi?.title || "Unknown BI"}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <Badge className={statusBadgeClass(p.status)}>
-                                            {p.status.replace("_", " ")}
-                                        </Badge>
-                                    </td>
-                                    <td className="px-4 py-4 text-right">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onReview(p)}
-                                            className="rounded-full h-8 font-serif font-bold italic text-xs"
-                                        >
-                                            Review
-                                        </Button>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </ResponsiveTableCard>
+                                    Review Submission
+                                </Button>
+                            </div>
+                        );
+                    })}
+                >
+                    <table className="w-full text-left text-xs sm:text-sm">
+                        <thead className="bg-muted/50 border-b-2 border-[#E8E4D8]">
+                            <tr>
+                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
+                                    Competency / BI
+                                </th>
+                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
+                                    Result
+                                </th>
+                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
+                                    Status
+                                </th>
+                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
+                                    Action
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#E8E4D8]">
+                            {sorted.map((p) => {
+                                const bi = biLookup[p.behavioral_indicator_id];
+                                const comp = bi ? compLookup[bi.competency_id] : null;
+                                return (
+                                    <tr
+                                        key={p.id}
+                                        className="hover:bg-muted/5 transition-colors"
+                                    >
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black uppercase text-primary/60">
+                                                    {comp?.title || "Unknown Comp"}
+                                                </span>
+                                                <span className="font-bold text-foreground line-clamp-1 text-sm">
+                                                    {bi?.title || "Unknown BI"}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm text-foreground line-clamp-2">
+                                                    {p.star_result || '—'}
+                                                </span>
+                                                {typeof p.score !== 'undefined' && p.score !== null && (
+                                                    <span className="text-[10px] text-muted-foreground mt-1">Score: {p.score}/50</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-4">
+                                            <Badge className={statusBadgeClass(p.status)}>
+                                                {p.status.replace("_", " ")}
+                                            </Badge>
+                                        </td>
+                                        <td className="px-4 py-4 text-right">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => onReview(p)}
+                                                className="rounded-full h-8 font-serif font-bold italic text-xs"
+                                            >
+                                                Review
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </ResponsiveTableCard>
+            )}
         </div>
     );
 }
@@ -296,13 +409,18 @@ function PortfolioReviewPanel({
     const [feedback, setFeedback] = useState(portfolio.feedback || "");
     const [score, setScore] = useState(portfolio.score || 0);
     const [isSaving, setIsSaving] = useState(false);
+    const [scoreError, setScoreError] = useState<string | null>(null);
 
     const bi = biLookup[portfolio.behavioral_indicator_id];
 
     const handleSubmit = async () => {
         setIsSaving(true);
         try {
-            await onSave(status, feedback, score);
+            // Ensure score is numeric and within range 0-50
+            let finalScore = Number(score) || 0;
+            if (finalScore < 0) finalScore = 0;
+            if (finalScore > 50) finalScore = 50;
+            await onSave(status, feedback, finalScore);
         } finally {
             setIsSaving(false);
         }
@@ -408,9 +526,28 @@ function PortfolioReviewPanel({
                             min="0"
                             max="50"
                             value={score}
-                            onChange={(e) => setScore(Number(e.target.value))}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                const n = Number(v);
+                                if (v === "") {
+                                    setScore(0);
+                                    setScoreError("Score is required (0-50)");
+                                    return;
+                                }
+                                if (Number.isNaN(n)) {
+                                    setScoreError("Invalid number");
+                                } else if (n < 0 || n > 50) {
+                                    setScoreError("Score must be between 0 and 50");
+                                } else {
+                                    setScoreError(null);
+                                }
+                                setScore(n);
+                            }}
                             className="rounded-xl border-2 border-[#E8E4D8] h-11"
                         />
+                        {scoreError && (
+                            <p className="text-[10px] text-red-600 mt-1">{scoreError}</p>
+                        )}
                     </div>
                 </div>
 
@@ -437,7 +574,7 @@ function PortfolioReviewPanel({
                     <Button
                         className="rounded-full px-6 sm:px-8 shadow-lg shadow-primary/20 w-full sm:w-auto h-10 sm:h-11"
                         onClick={handleSubmit}
-                        disabled={isSaving}
+                        disabled={isSaving || !!scoreError}
                     >
                         {isSaving ? (
                             <>
@@ -1501,7 +1638,7 @@ function PerformanceBreakdownView({
                         biIds,
                         progress,
                         portfolios,
-                        groundingScore,
+                        groundingScore * 10,
                         examScore
                     );
 
@@ -1566,61 +1703,115 @@ function PerformanceBreakdownView({
     const selectedComp = competencyPerformance.find(
         (c) => c.id === selectedCompId
     );
+    const selectedBreakdown = selectedComp?.biBreakdown ?? [];
+    const totalBIs = selectedBreakdown.length;
+    const believePassedCount = selectedBreakdown.filter(
+        (bi) => bi.believePassed
+    ).length;
+    const avgKnow =
+        totalBIs > 0
+            ? Math.round(
+                selectedBreakdown.reduce(
+                    (sum, bi) => sum + bi.knowContribution,
+                    0
+                ) / totalBIs
+            )
+            : 0;
+    const avgDo =
+        totalBIs > 0
+            ? Math.round(
+                selectedBreakdown.reduce(
+                    (sum, bi) => sum + bi.doContribution,
+                    0
+                ) / totalBIs
+            )
+            : 0;
+    const avgScore =
+        totalBIs > 0
+            ? Math.round(
+                selectedBreakdown.reduce((sum, bi) => sum + bi.score, 0) /
+                totalBIs
+            )
+            : 0;
+    const groundingContribution = selectedComp?.groundingContribution || 0;
+    const examContribution = selectedComp?.examContribution || 0;
+    const finalComposite = selectedComp?.compositeScore || 0;
+    const preExamTotal = avgScore + groundingContribution;
+    const compositeStatus = finalComposite >= 75 ? "Excellence Met" : "In Development";
+    const compositeInsight = selectedComp
+        ? selectedComp.compositeScore >= 75
+            ? "This competency is at mastery threshold. The fellow is holding a strong composite across belief, knowledge, portfolio evidence, grounding, and exam performance."
+            : selectedComp.compositeScore > 0
+                ? "This competency is progressing, but the largest lift will come from approved portfolio evidence and stronger Know / Do execution."
+                : "This competency has not moved yet. Believe and Know completion are the first gates before the performance score can climb."
+        : "Select a competency above to view the full performance breakdown.";
 
     return (
         <div className="space-y-4 sm:space-y-6 lg:space-y-8">
             <SectionHeader
                 icon={TrendingUp}
                 title="Performance Breakdown"
-                description="Detailed scoring breakdown with composite calculations."
+                description="Detailed scoring breakdown with composite calculations and admin-controlled exam edits."
                 color="bg-primary/10 text-primary"
             />
 
-            {/* Scoring Formula Reference */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 md:gap-4">
-                <Card className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50 to-white">
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
-                        <Brain className="size-3.5 sm:size-4 text-emerald-700 shrink-0" />
-                        <p className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-emerald-700">
-                            Know Phase
-                        </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+                <Card className="p-5 sm:p-6 rounded-[2rem] border-[#E8E4D8] bg-white shadow-lg relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Star size={72} />
                     </div>
-                    <p className="text-xl sm:text-2xl md:text-3xl font-serif font-black text-emerald-700">
-                        20%
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#C5A059] mb-3">
+                        Grounding Module
                     </p>
-                    <p className="text-[9px] sm:text-[10px] text-emerald-600/60 font-medium mt-0.5">
-                        Quiz Score Weight
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-serif font-bold text-[#1B4332]">
+                            {groundingContribution}
+                        </span>
+                        <span className="text-sm font-medium text-[#1B4332]/40">/10</span>
+                    </div>
+                    <p className="text-xs text-[#1B4332]/40 mt-4 leading-relaxed italic">
+                        Contributes <span className="text-[#C5A059] font-bold">10%</span> to the full composite score.
                     </p>
                 </Card>
 
-                <Card className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-white">
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
-                        <FileText className="size-3.5 sm:size-4 text-blue-700 shrink-0" />
-                        <p className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-blue-700">
-                            Do Phase
-                        </p>
+                <Card className="p-5 sm:p-6 rounded-[2rem] border-[#E8E4D8] bg-white shadow-lg relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <TrendingUp size={72} />
                     </div>
-                    <p className="text-xl sm:text-2xl md:text-3xl font-serif font-black text-blue-700">
-                        50%
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#C5A059] mb-3">
+                        Performance Weights
                     </p>
-                    <p className="text-[9px] sm:text-[10px] text-blue-600/60 font-medium mt-0.5">
-                        Portfolio Score Weight
-                    </p>
+                    <div className="grid grid-cols-2 gap-y-4 gap-x-6 mt-2">
+                        <div>
+                            <p className="text-[8px] font-black text-[#1B4332]/40 uppercase mb-1">Know (Quiz)</p>
+                            <p className="text-xl font-serif font-bold text-[#1B4332]">20%</p>
+                        </div>
+                        <div>
+                            <p className="text-[8px] font-black text-[#1B4332]/40 uppercase mb-1">Do (Portfolio)</p>
+                            <p className="text-xl font-serif font-bold text-[#1B4332]">50%</p>
+                        </div>
+                        <div className="col-span-2 border-t border-dashed border-[#E8E4D8] pt-2">
+                            <p className="text-[8px] font-black text-[#1B4332]/40 uppercase mb-1">Exam Contribution</p>
+                            <p className="text-xl font-serif font-bold text-[#1B4332]">20%</p>
+                        </div>
+                    </div>
                 </Card>
 
-                <Card className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-white">
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
-                        <Award className="size-3.5 sm:size-4 text-purple-700 shrink-0" />
-                        <p className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-purple-700">
-                            Global
-                        </p>
+                <Card className="p-5 sm:p-6 rounded-[2rem] border-[#1B4332] bg-[#1B4332] text-white shadow-xl flex flex-col justify-center relative overflow-hidden group">
+                    <div className="absolute -bottom-10 -right-10 opacity-10 group-hover:scale-110 transition-transform duration-1000">
+                        <Award size={160} />
                     </div>
-                    <p className="text-xl sm:text-2xl md:text-3xl font-serif font-black text-purple-700">
-                        30%
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#C5A059] mb-3">
+                        Excellence Status
                     </p>
-                    <p className="text-[9px] sm:text-[10px] text-purple-600/60 font-medium mt-0.5">
-                        Grounding (10%) + Exam (20%)
-                    </p>
+                    <h4 className="text-2xl font-serif font-bold italic mb-2 leading-tight">
+                        Mastery Target
+                    </h4>
+                    <div className="flex items-center gap-3">
+                        <div className="h-0.5 flex-1 bg-white/10" />
+                        <span className="text-xs font-black text-[#C5A059]">75%+ COMPOSITE</span>
+                        <div className="h-0.5 flex-1 bg-white/10" />
+                    </div>
                 </Card>
             </div>
 
@@ -1790,10 +1981,29 @@ function PerformanceBreakdownView({
 
                     {/* BI Breakdown — responsive: cards on mobile, table on lg+ */}
                     <Card className="rounded-2xl sm:rounded-3xl border-2 border-[#E8E4D8] overflow-hidden">
-                        <div className="p-4 sm:p-5 md:p-6 bg-muted/30 border-b-2 border-[#E8E4D8]">
-                            <h4 className="text-sm sm:text-base md:text-lg font-serif font-bold text-foreground">
-                                Behavioral Indicator Performance
-                            </h4>
+                        <div className="p-4 sm:p-5 md:p-6 bg-muted/30 border-b-2 border-[#E8E4D8] flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <h4 className="text-sm sm:text-base md:text-lg font-serif font-bold text-foreground">
+                                    Behavioral Indicator Performance
+                                </h4>
+                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                                    This mirrors the fellow dashboard detail and adds admin editing for exam inputs.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-4 flex-wrap">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="size-2 rounded-full bg-blue-500/40" />
+                                    <span className="text-[9px] font-black uppercase text-[#1B4332]/40 tracking-wider">
+                                        Know
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <div className="size-2 rounded-full bg-emerald-500/40" />
+                                    <span className="text-[9px] font-black uppercase text-[#1B4332]/40 tracking-wider">
+                                        Do
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Mobile BI Cards */}
@@ -2007,32 +2217,17 @@ function PerformanceBreakdownView({
                                         </td>
                                         <td className="p-4 text-center">
                                             <span className="text-lg font-serif font-black text-foreground">
-                                                {Math.round(
-                                                    selectedComp.biBreakdown.reduce(
-                                                        (sum, bi) => sum + bi.knowContribution,
-                                                        0
-                                                    ) / selectedComp.biBreakdown.length
-                                                )}
+                                                {avgKnow}
                                             </span>
                                         </td>
                                         <td className="p-4 text-center">
                                             <span className="text-lg font-serif font-black text-foreground">
-                                                {Math.round(
-                                                    selectedComp.biBreakdown.reduce(
-                                                        (sum, bi) => sum + bi.doContribution,
-                                                        0
-                                                    ) / selectedComp.biBreakdown.length
-                                                )}
+                                                {avgDo}
                                             </span>
                                         </td>
                                         <td className="p-4 text-center">
                                             <span className="text-xl font-serif font-black text-primary">
-                                                {Math.round(
-                                                    selectedComp.biBreakdown.reduce(
-                                                        (sum, bi) => sum + bi.score,
-                                                        0
-                                                    ) / selectedComp.biBreakdown.length
-                                                )}
+                                                {avgScore}
                                             </span>
                                         </td>
                                     </tr>
@@ -2041,16 +2236,68 @@ function PerformanceBreakdownView({
                                             colSpan={4}
                                             className="p-4 text-right text-xs font-semibold text-muted-foreground uppercase"
                                         >
-                                            + Grounding (10) + Exam (20)
+                                            Exam Contribution (20%)
                                         </td>
                                         <td className="p-4 text-center">
-                                            <span className="text-2xl font-serif font-black text-primary">
-                                                = {selectedComp.compositeScore}%
+                                            <span className="text-xl font-bold text-[#1B4332]">
+                                                + {examContribution}
                                             </span>
+                                        </td>
+                                    </tr>
+                                    <tr className="border-t border-[#C5A059]/30 bg-[#C5A059]/10">
+                                        <td
+                                            colSpan={4}
+                                            className="p-6 text-right"
+                                        >
+                                            <span className="text-sm font-black text-[#1B4332] uppercase tracking-wider">
+                                                Total Value (Pre-Exam)
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-3xl font-serif font-bold text-[#1B4332]">
+                                                    {preExamTotal} <span className="text-lg text-[#1B4332]/50">/ 80</span>
+                                                </span>
+                                                <div className="h-1 w-12 bg-[#C5A059] rounded-full mt-1" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr className="border-t border-[#1B4332]/10 bg-white">
+                                        <td
+                                            colSpan={4}
+                                            className="p-6 text-right"
+                                        >
+                                            <span className="text-sm font-black text-[#1B4332] uppercase tracking-wider">
+                                                Final Composite
+                                            </span>
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-3xl font-serif font-bold text-[#1B4332]">
+                                                    {finalComposite}%
+                                                </span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]/40 mt-1">
+                                                    {compositeStatus}
+                                                </span>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tfoot>
                             </table>
+                        </div>
+
+                        <div className="p-6 sm:p-8 bg-[#1B4332]/5 flex items-center gap-5 border-t border-[#E8E4D8]">
+                            <div className="size-12 rounded-2xl bg-[#1B4332]/5 flex items-center justify-center text-[#1B4332] shrink-0">
+                                <Star size={24} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-[#1B4332]/40 tracking-wider">
+                                    Performance Insight
+                                </p>
+                                <p className="text-xs text-[#1B4332] font-medium italic leading-snug mt-1">
+                                    {compositeInsight}
+                                </p>
+                            </div>
                         </div>
                     </Card>
                 </div>
@@ -2417,12 +2664,6 @@ export default function FellowProgressTracker({
                         progress={progress}
                         biLookup={biLookup}
                         compLookup={compLookup}
-                    />
-                );
-            case "believe":
-                return (
-                    <BelieveView
-                        progress={progress}
                         groundingResult={groundingResults[0]}
                         biLookup={biLookup}
                         compLookup={compLookup}

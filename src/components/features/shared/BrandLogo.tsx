@@ -1,5 +1,4 @@
-import { Workflow } from "lucide-react";
-
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { BRAND } from "@/lib/constants";
 
@@ -31,14 +30,21 @@ const BrandLogo = ({
         className
       )}
     >
-      <span
+      <div
         className={cn(
-          "w-15 h-10 rounded-full bg-primary text-white flex items-center justify-center shadow-sm",
-          iconClassName
+          "relative flex items-center justify-center",
+          iconClassName || "size-10"
         )}
       >
-        <Workflow className="h-5 w-5" />
-      </span>
+        <Image
+          src="/mbllogo.png"
+          alt={BRAND.name}
+          width={120}
+          height={120}
+          className="object-contain"
+          priority
+        />
+      </div>
       <div className={cn("flex flex-col", stacked ? "gap-1" : "gap-0.5", textClassName)}>
         <span className="text-xl font-bold uppercase tracking-widest text-primary dark:text-white">
           {labelText}

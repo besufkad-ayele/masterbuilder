@@ -1,6 +1,6 @@
 ##these project 
 # Master Builder Platform
-
+now let's add the admin dashboard feature in cohort detial i want download wave option for all fellows and the excel sheet is what i want + each fellow should have a bottom of fellow name by their  plus the each fellow detial should be classfied by the comptency details and should show the summation of thier like what is iin thier perfamocne tab 
 <p align="center">
 	<img src="./public/hero.jpg" alt="Master Builder hero" width="100%" />
 </p>
