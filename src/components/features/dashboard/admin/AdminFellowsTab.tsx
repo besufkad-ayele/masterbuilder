@@ -16,6 +16,7 @@ import {
     Users,
     Briefcase,
     Circle,
+    FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +45,17 @@ import FellowUpdateForm from "./FellowUpdateForm";
 import FellowProgressTracker from "./FellowProgressTracker";
 import UserProfileDetail from "./UserProfileDetail";
 import { FellowService } from "@/services/FellowService";
-import { Company, FellowProfile } from "@/types";
+import { ExamService } from "@/services/ExamService";
+import { FellowProgressService } from "@/services/FellowProgressService";
+import {
+    BehavioralIndicator,
+    Company,
+    Competency,
+    FellowProfile,
+    GroundingResult,
+    PhaseProgress,
+    Portfolio,
+} from "@/types";
 
 // ─── Fellow Actions Component ─────────────────────────────────────────────────
 
@@ -355,6 +366,149 @@ export default function AdminFellowsTab() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<"profile" | "progress">("profile");
+    const [isExporting, setIsExporting] = useState(false);
+
+    const buildExportRow = ({
+        fellow,
+        competencyBiIds,
+        progress,
+        portfolios,
+        groundingResults,
+        finalAssessmentScore,
+    }: {
+        fellow: FellowProfile;
+        competencyBiIds: string[];
+        progress: PhaseProgress[];
+        portfolios: Portfolio[];
+        groundingResults: GroundingResult[];
+        finalAssessmentScore: number;
+    }) => {
+        const biMetrics = competencyBiIds.map((biId) => {
+            const biProgress = progress.filter((p) => p.behavioral_indicator_id === biId);
+            const believePhase = biProgress.find((p) => p.phase_type === "believe");
+            const knowPhase = biProgress.find((p) => p.phase_type === "know");
+            const approvedPortfolio = portfolios.find(
+                (p) => p.behavioral_indicator_id === biId && p.status === "approved"
+            );
+
+            return {
+                believePassed: !!believePhase?.believe_passed,
+                knowContribution: Math.round(((knowPhase?.know_score || 0) / 100) * 20),
+                doContribution: Math.round(approvedPortfolio?.score || 0),
+            };
+        });
+
+        const groundingScore = Math.round(groundingResults[0]?.score || 0);
+        const knowScore =
+            biMetrics.length > 0
+                ? Math.round(
+                    biMetrics.reduce((sum, metric) => sum + metric.knowContribution, 0) / biMetrics.length
+                )
+                : 0;
+        const doScore =
+            biMetrics.length > 0
+                ? Math.round(
+                    biMetrics.reduce((sum, metric) => sum + metric.doContribution, 0) / biMetrics.length
+                )
+                : 0;
+        const believeStatus =
+            biMetrics.length > 0 && biMetrics.every((metric) => metric.believePassed) ? "Pass" : "Failed";
+        const finalAssessment = Math.round(finalAssessmentScore);
+        const total = Math.round(groundingScore + knowScore + doScore + finalAssessment);
+
+        return {
+            "Fellow ID": fellow.fellow_id || "",
+            "Full Name": fellow.full_name || "",
+            "Grounding (10%)": groundingScore,
+            Believe: believeStatus,
+            "Know (20%)": knowScore,
+            "Do (50%)": doScore,
+            "Final Assesment (20%)": finalAssessment,
+            "Total (100%)": total,
+        };
+    };
+
+    const handleExportToExcel = async () => {
+        if (!fellows.length || isExporting) return;
+        setIsExporting(true);
+
+        try {
+            const [competencies, behavioralIndicators] = await Promise.all([
+                FellowProgressService.getAllCompetencies(),
+                FellowProgressService.getAllBehavioralIndicators(),
+            ]);
+
+            const competencyBIMap = new Map<string, string[]>();
+            (competencies as Competency[]).forEach((competency) => {
+                const biIds = (behavioralIndicators as BehavioralIndicator[])
+                    .filter((bi) => bi.competency_id === competency.id)
+                    .map((bi) => bi.id);
+                if (biIds.length > 0) {
+                    competencyBIMap.set(competency.id, biIds);
+                }
+            });
+
+            const fellowReports = await Promise.all(
+                fellows.map(async (fellow) => {
+                    const [progress, portfolios, groundingResults, examAttempts] = await Promise.all([
+                        FellowProgressService.getPhaseProgressByFellow(fellow.user_id),
+                        FellowProgressService.getPortfoliosByFellow(fellow.user_id),
+                        FellowProgressService.getGroundingResultsByFellow(fellow.user_id),
+                        ExamService.getAttemptsByUser(fellow.user_id),
+                    ]);
+
+                    return { fellow, progress, portfolios, groundingResults, examAttempts };
+                })
+            );
+
+            const XLSX = await import("xlsx");
+            const workbook = XLSX.utils.book_new();
+
+            const sanitizeSheetName = (name: string) =>
+                name
+                    .replace(/[\[\]\*\/\\\?:]/g, "")
+                    .slice(0, 31) || "Competency";
+
+            (competencies as Competency[]).forEach((competency) => {
+                const competencyBiIds = competencyBIMap.get(competency.id);
+                if (!competencyBiIds || competencyBiIds.length === 0) return;
+
+                const rows = fellowReports.map(({ fellow, progress, portfolios, groundingResults, examAttempts }) => {
+                    const competencyExamScores = examAttempts
+                        .filter((attempt) => attempt.exam_id === competency.id)
+                        .map((attempt) => attempt.score || 0);
+                    const finalAssessmentScore =
+                        competencyExamScores.length > 0
+                            ? competencyExamScores.reduce((sum, score) => sum + score / 5, 0) /
+                            competencyExamScores.length
+                            : 0;
+
+                    return buildExportRow({
+                        fellow,
+                        competencyBiIds,
+                        progress,
+                        portfolios,
+                        groundingResults,
+                        finalAssessmentScore,
+                    });
+                });
+
+                const worksheet = XLSX.utils.json_to_sheet(rows);
+                XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(competency.title));
+            });
+
+            if (workbook.SheetNames.length === 0) {
+                const fallbackSheet = XLSX.utils.json_to_sheet([]);
+                XLSX.utils.book_append_sheet(workbook, fallbackSheet, "Report");
+            }
+
+            XLSX.writeFile(workbook, `admin-fellows-performance-${new Date().toISOString().slice(0, 10)}.xlsx`);
+        } catch (error) {
+            console.error("Failed to export fellows report:", error);
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -525,11 +679,33 @@ export default function AdminFellowsTab() {
                         />
                     </div>
 
-                    <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs font-medium px-2">
-                        <Users className="size-3.5 text-primary/50" />
-                        <span>
-                            <span className="text-primary font-semibold">{filteredFellows.length}</span> fellows
-                        </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-2">
+                        <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs font-medium px-2">
+                            <Users className="size-3.5 text-primary/50" />
+                            <span>
+                                <span className="text-primary font-semibold">{filteredFellows.length}</span> fellows
+                            </span>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleExportToExcel}
+                            disabled={loading || isExporting || fellows.length === 0}
+                            className="h-9 rounded-lg border-[#E8E4D8] text-xs sm:text-sm"
+                        >
+                            {isExporting ? (
+                                <>
+                                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                    Exporting...
+                                </>
+                            ) : (
+                                <>
+                                    <FileSpreadsheet className="size-3.5 mr-1.5" />
+                                    Export Excel
+                                </>
+                            )}
+                        </Button>
                     </div>
                 </div>
             </div>
