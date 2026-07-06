@@ -205,10 +205,10 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
     const handleEditPortfolio = (portfolio: Portfolio) => {
         setEditingPortfolioId(portfolio.id);
         setCurrentStar({
-            situation: portfolio.star_situation,
-            task: portfolio.star_task,
-            action: portfolio.star_action,
-            result: portfolio.star_result,
+            situation: portfolio.star_situation || "",
+            task: portfolio.star_task || "",
+            action: portfolio.star_action || "",
+            result: portfolio.star_result || "",
             evidenceUrl: portfolio.evidence_urls?.[0] || "",
         });
         // Scroll to form
@@ -266,12 +266,12 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                     "w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500",
                                     step === s.id
                                         ? "bg-[#1B4332] text-white shadow-xl scale-110 ring-4 ring-[#1B4332]/10"
-                                        : portfolios.length >= 3 && s.id === "create" || (step === "submit" && idx < 2)
+                                        : portfolios.length >= 1 && s.id === "create" || (step === "submit" && idx < 2)
                                             ? "bg-green-500 text-white"
                                             : "bg-[#FDFCF6] text-[#1B4332]/30 border border-[#E8E4D8]"
                                 )}
                             >
-                                {portfolios.length >= 3 && s.id === "create" ? <CheckCircle2 className="w-5 h-5" /> : <s.icon className="w-5 h-5" />}
+                                {portfolios.length >= 1 && s.id === "create" ? <CheckCircle2 className="w-5 h-5" /> : <s.icon className="w-5 h-5" />}
                             </div>
                             <span
                                 className={cn(
@@ -359,7 +359,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                     <p className="text-[#1B4332]/50 text-xs">
                                         {editingPortfolioId 
                                             ? 'Update your entry and click "Save Changes" to update it in the archive.'
-                                            : 'You must create at least 3 entries to proceed (simulated for training).'
+                                            : 'Create at least 1 entry to proceed (max 3 entries).'
                                         }
                                     </p>
                                 </div>
@@ -449,14 +449,6 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                     <h4 className="font-bold text-[#1B4332] flex items-center gap-2">
                                         Archive <span className="text-[#C5A059]">({portfolios.length}/3)</span>
                                     </h4>
-                                    {portfolios.length >= 3 && (
-                                        <button
-                                            onClick={() => setStep("submit")}
-                                            className="text-xs font-bold text-green-600 hover:text-green-700 underline underline-offset-4"
-                                        >
-                                            Proceed to Final Submission
-                                        </button>
-                                    )}
                                 </div>
 
                                 <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
@@ -552,6 +544,15 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                         ))
                                     )}
                                 </div>
+
+                                {portfolios.length >= 1 && (
+                                    <button
+                                        onClick={() => setStep("submit")}
+                                        className="w-full bg-[#C5A059] text-white py-4 rounded-2xl font-bold uppercase tracking-widest hover:bg-[#B69248] transition-all flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        <Award className="w-5 h-5" /> Proceed to Final Submission
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
