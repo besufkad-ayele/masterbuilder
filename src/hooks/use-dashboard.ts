@@ -130,6 +130,10 @@ export function useFellowDashboard(userId?: string) {
       ]);
 
       const exams = profile.cohort_id ? await ExamService.getExamsByCohort(profile.cohort_id) : [];
+      const [examinations, examinationAttempts] = await Promise.all([
+        profile.cohort_id ? ExamService.getExaminationsForFellow(profile.cohort_id, userId) : Promise.resolve([]),
+        ExamService.getExaminationAttemptsByUser(userId),
+      ]);
 
       // Fetch grounding module if assigned and active
       let groundingModule = undefined;
@@ -166,6 +170,8 @@ export function useFellowDashboard(userId?: string) {
         groundingResults: groundingResults,
         examAttempts: examAttempts,
         exams: exams,
+        examinations: examinations,
+        examinationAttempts: examinationAttempts,
         behavioralIndicators: behavioralIndicators,
         notifications: notifications
       } as any); // Use any to avoid strict type check for now until types are updated

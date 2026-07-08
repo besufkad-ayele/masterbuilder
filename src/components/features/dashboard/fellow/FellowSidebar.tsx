@@ -62,6 +62,8 @@ const FellowSidebar: React.FC<FellowSidebarProps> = ({ fellowId }) => {
 
   const displayName = dashboardData?.user?.name || dashboardData?.profile?.full_name || 'Fellow';
   const isGroundingLocked = dashboardData?.cohort?.is_grounding_active === false;
+  const hasEnabledExams =
+    (dashboardData?.examinations || []).some((exam: any) => exam?.is_enabled === true);
 
   return (
     <aside className="w-72 h-screen flex flex-col bg-[#FDFCF6]/80 backdrop-blur-xl border-r border-[#E8E4D8] overflow-hidden sticky top-0 z-[100] transition-all duration-500">
@@ -150,21 +152,17 @@ const FellowSidebar: React.FC<FellowSidebarProps> = ({ fellowId }) => {
         </div>
 
         {/* Portfolio & Performance */}
-        {/* <div className="pt-4 border-t border-[#E8E4D8]/50 space-y-1">
+        {hasEnabledExams && (
+          <div className="pt-4 border-t border-[#E8E4D8]/50 space-y-1">
           <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B9B7E]">Leadership Portfolio</p>
-          <NavItem
-            icon={FileText}
-            title="Evidence & Output"
-            tab="portfolio"
-            isActive={currentTab === 'portfolio'}
-          />
           <NavItem
             icon={GraduationCap}
             title="Examinations"
             tab="exams"
             isActive={currentTab === 'exams'}
           />
-        </div> */}
+          </div>
+        )}
       </div>
 
       {/* Footer Settings */}

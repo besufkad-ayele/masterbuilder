@@ -34,7 +34,8 @@ import {
     Edit2,
 } from "lucide-react";
 import { FellowProgressService } from "@/services/FellowProgressService";
-import { ExamService, ExamAttempt } from "@/services/ExamService";
+import { FellowService } from "@/services/FellowService";
+import { ExamService, ExamAttempt, ExaminationAttempt } from "@/services/ExamService";
 import {
     Portfolio,
     PhaseProgress,
@@ -1588,6 +1589,8 @@ function PerformanceBreakdownView({
     compLookup,
     groundingResults,
     examAttempts,
+    competencyWaveMeta,
+    orderedWaves,
     onUpdateCompExamScore,
 }: {
     progress: PhaseProgress[];
@@ -1596,6 +1599,8 @@ function PerformanceBreakdownView({
     compLookup: Record<string, Competency>;
     groundingResults: GroundingResult[];
     examAttempts: ExamAttempt[];
+    competencyWaveMeta: Record<string, { waveNumber: number; waveName: string; displayOrder: number }>;
+    orderedWaves: { number: number; name: string }[];
     onUpdateCompExamScore: (compId: string, score: number) => Promise<void>;
 }) {
     const [selectedCompId, setSelectedCompId] = React.useState<string | null>(
@@ -1699,6 +1704,50 @@ function PerformanceBreakdownView({
         groundingScore,
         examAttempts,
     ]);
+
+    // Group competencies by wave (in wave order, then competency display order).
+    // Only the fellow's OWN cohort waves/competencies are shown — competencies that
+    // belong to other cohorts' waves are excluded entirely.
+    const competencyGroups = React.useMemo(() => {
+        const hasWaveScope = Object.keys(competencyWaveMeta).length > 0;
+
+        // Fallback: if we couldn't resolve the fellow's cohort waves, show everything
+        // in a single group rather than leaking other cohorts' waves.
+        if (!hasWaveScope) {
+            return competencyPerformance.length
+                ? [
+                      {
+                          key: "all",
+                          label: "All Competencies",
+                          comps: [...competencyPerformance].sort((a, b) => a.title.localeCompare(b.title)),
+                      },
+                  ]
+                : [];
+        }
+
+        const buckets: Record<number, typeof competencyPerformance> = {};
+        competencyPerformance.forEach((c) => {
+            const meta = competencyWaveMeta[c.id];
+            if (!meta) return; // not part of this fellow's cohort — skip
+            (buckets[meta.waveNumber] ||= []).push(c);
+        });
+        Object.values(buckets).forEach((list) =>
+            list.sort((a, b) => {
+                const ma = competencyWaveMeta[a.id];
+                const mb = competencyWaveMeta[b.id];
+                if (ma.displayOrder !== mb.displayOrder) return ma.displayOrder - mb.displayOrder;
+                return a.title.localeCompare(b.title);
+            })
+        );
+        return Object.keys(buckets)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .map((waveNumber) => ({
+                key: `wave-${waveNumber}`,
+                label: `Wave ${waveNumber}: ${orderedWaves.find((w) => w.number === waveNumber)?.name || `Wave ${waveNumber}`}`,
+                comps: buckets[waveNumber],
+            }));
+    }, [competencyPerformance, competencyWaveMeta, orderedWaves]);
 
     const selectedComp = competencyPerformance.find(
         (c) => c.id === selectedCompId
@@ -1815,58 +1864,75 @@ function PerformanceBreakdownView({
                 </Card>
             </div>
 
-            {/* Competency Selector */}
-            <div className="space-y-2 sm:space-y-3">
+            {/* Competency Selector — grouped by wave, then competency order */}
+            <div className="space-y-4 sm:space-y-5">
                 <h4 className="text-xs sm:text-sm font-bold text-foreground px-1">
                     Select Competency to View Breakdown
                 </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5 md:gap-3">
-                    {competencyPerformance.map((comp) => (
-                        <button
-                            key={comp.id}
-                            onClick={() => setSelectedCompId(comp.id)}
-                            className={cn(
-                                "p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all text-left active:scale-[0.98]",
-                                selectedCompId === comp.id
-                                    ? "bg-primary text-white border-primary shadow-lg scale-[1.01] sm:scale-[1.02]"
-                                    : "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-md"
-                            )}
-                        >
-                            <div className="flex items-center justify-between mb-1 sm:mb-1.5">
-                                <span
-                                    className={cn(
-                                        "text-[9px] sm:text-[10px] font-black uppercase tracking-widest",
-                                        selectedCompId === comp.id
-                                            ? "text-white/80"
-                                            : "text-primary/60"
-                                    )}
-                                >
-                                    {comp.code}
-                                </span>
-                                <span
-                                    className={cn(
-                                        "text-lg sm:text-xl font-serif font-black",
-                                        selectedCompId === comp.id
-                                            ? "text-white"
-                                            : "text-primary"
-                                    )}
-                                >
-                                    {comp.compositeScore}%
-                                </span>
-                            </div>
-                            <p
-                                className={cn(
-                                    "text-xs sm:text-sm font-bold line-clamp-1",
-                                    selectedCompId === comp.id
-                                        ? "text-white"
-                                        : "text-foreground"
-                                )}
-                            >
-                                {comp.title}
+                {competencyGroups.map((group) => (
+                    <div key={group.key} className="space-y-2 sm:space-y-2.5">
+                        <div className="flex items-center gap-2 px-1">
+                            <Waves className="size-3.5 text-primary/60" />
+                            <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-primary/70">
+                                {group.label}
                             </p>
-                        </button>
-                    ))}
-                </div>
+                            <span className="text-[10px] font-bold text-muted-foreground">
+                                ({group.comps.length})
+                            </span>
+                            <div className="h-px flex-1 bg-[#E8E4D8]" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5 md:gap-3">
+                            {group.comps.map((comp) => (
+                                <button
+                                    key={comp.id}
+                                    onClick={() => setSelectedCompId(comp.id)}
+                                    className={cn(
+                                        "p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all text-left active:scale-[0.98]",
+                                        selectedCompId === comp.id
+                                            ? "bg-primary text-white border-primary shadow-lg scale-[1.01] sm:scale-[1.02]"
+                                            : "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-md"
+                                    )}
+                                >
+                                    <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                                        <span
+                                            className={cn(
+                                                "text-[9px] sm:text-[10px] font-black uppercase tracking-widest",
+                                                selectedCompId === comp.id
+                                                    ? "text-white/80"
+                                                    : "text-primary/60"
+                                            )}
+                                        >
+                                            {comp.code}
+                                        </span>
+                                        <span
+                                            className={cn(
+                                                "text-lg sm:text-xl font-serif font-black",
+                                                selectedCompId === comp.id
+                                                    ? "text-white"
+                                                    : "text-primary"
+                                            )}
+                                        >
+                                            {comp.compositeScore}%
+                                        </span>
+                                    </div>
+                                    <p
+                                        className={cn(
+                                            "text-xs sm:text-sm font-bold line-clamp-1",
+                                            selectedCompId === comp.id
+                                                ? "text-white"
+                                                : "text-foreground"
+                                        )}
+                                    >
+                                        {comp.title}
+                                    </p>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+                {competencyGroups.length === 0 && (
+                    <EmptyState message="No competencies available for this fellow yet." />
+                )}
             </div>
 
             {/* Detailed Breakdown */}
@@ -2400,6 +2466,248 @@ const TABS: {
     },
 ];
 
+/**
+ * EXAMINATION REVIEW PANEL
+ * Shows every question of each examination the fellow has taken, their answer,
+ * MCQ correctness, and inputs for the admin to award marks on written questions.
+ */
+function ExaminationReviewPanel({ userId }: { userId: string }) {
+    const [attempts, setAttempts] = useState<ExaminationAttempt[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [savingId, setSavingId] = useState<string | null>(null);
+    const [drafts, setDrafts] = useState<Record<string, Record<string, number>>>({});
+    const [notice, setNotice] = useState<string | null>(null);
+
+    const load = async () => {
+        setLoading(true);
+        try {
+            const list = await ExamService.getExaminationAttemptsByUser(userId);
+            const finished = list.filter((a) => a.status !== "draft");
+            setAttempts(finished);
+            const initialDrafts: Record<string, Record<string, number>> = {};
+            finished.forEach((a) => {
+                initialDrafts[a.id] = { ...(a.written_scores || {}) };
+            });
+            setDrafts(initialDrafts);
+        } catch (e) {
+            console.error("Failed to load examination attempts", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        load();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    const setWrittenScore = (attemptId: string, questionId: string, value: number) => {
+        setDrafts((prev) => ({
+            ...prev,
+            [attemptId]: { ...(prev[attemptId] || {}), [questionId]: value },
+        }));
+    };
+
+    const handleSaveGrades = async (attempt: ExaminationAttempt) => {
+        setSavingId(attempt.id);
+        try {
+            const updated = await ExamService.gradeExaminationAttempt(
+                attempt.id,
+                drafts[attempt.id] || {},
+                "Admin"
+            );
+            setAttempts((prev) => prev.map((a) => (a.id === attempt.id ? updated : a)));
+            setNotice("Grades saved.");
+            window.setTimeout(() => setNotice(null), 2500);
+        } catch (e) {
+            console.error("Failed to save grades", e);
+            setNotice("Failed to save grades.");
+        } finally {
+            setSavingId(null);
+        }
+    };
+
+    if (loading) return <LoadingState />;
+
+    return (
+        <div className="space-y-6 sm:space-y-8">
+            <SectionHeader
+                icon={GraduationCap}
+                title="Examination Review & Grading"
+                description="Review answers and award marks for written responses."
+                color="bg-blue-100 text-blue-700"
+            />
+
+            {notice && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                    {notice}
+                </div>
+            )}
+
+            {attempts.length === 0 ? (
+                <EmptyState message="This fellow has not submitted any examinations yet." />
+            ) : (
+                <div className="space-y-6">
+                    {attempts.map((attempt) => {
+                        const hasUngradedWritten = attempt.competency_results.some((r) => !r.graded);
+                        return (
+                            <Card key={attempt.id} className="rounded-3xl border-2 border-[#E8E4D8] overflow-hidden">
+                                <CardHeader className="bg-muted/30 flex flex-row items-center justify-between gap-3 flex-wrap">
+                                    <div className="min-w-0">
+                                        <CardTitle className="text-base sm:text-lg font-serif truncate">{attempt.title}</CardTitle>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Submitted {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "—"}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Badge
+                                            className={cn(
+                                                "rounded-full",
+                                                attempt.status === "graded"
+                                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                                    : "bg-blue-100 text-blue-700 border-blue-200"
+                                            )}
+                                        >
+                                            {attempt.status === "graded" ? "Graded" : "Awaiting Review"}
+                                        </Badge>
+                                        <Badge variant="outline" className="rounded-full font-black">{attempt.score}%</Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="pt-5 space-y-6">
+                                    {attempt.competency_snapshots.map((snap) => {
+                                        const result = attempt.competency_results.find(
+                                            (r) => r.competency_id === snap.competency_id
+                                        );
+                                        return (
+                                            <div key={snap.competency_id} className="space-y-3">
+                                                <div className="flex items-center justify-between gap-2 border-b border-[#E8E4D8] pb-2">
+                                                    <h4 className="text-sm font-black uppercase tracking-widest text-primary">
+                                                        {snap.competency_title}
+                                                    </h4>
+                                                    {result && (
+                                                        <span className="text-xs font-bold text-muted-foreground">
+                                                            {result.mcq_correct}/{result.mcq_total} MCQ • {result.score}%
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {snap.questions.map((q, qi) => {
+                                                    const answer = attempt.answers?.[q.id];
+                                                    if (q.type === "multiple_choice") {
+                                                        const correct = Number(answer) === q.correct_option_index;
+                                                        return (
+                                                            <div key={q.id} className="rounded-2xl border border-[#E8E4D8] p-4 space-y-2">
+                                                                <p className="text-sm font-semibold text-foreground">
+                                                                    {qi + 1}. {q.text}
+                                                                </p>
+                                                                <div className="space-y-1">
+                                                                    {q.options.map((opt, oi) => (
+                                                                        <div
+                                                                            key={oi}
+                                                                            className={cn(
+                                                                                "flex items-center gap-2 text-xs px-3 py-2 rounded-lg",
+                                                                                oi === q.correct_option_index
+                                                                                    ? "bg-emerald-50 text-emerald-700 font-bold"
+                                                                                    : Number(answer) === oi
+                                                                                        ? "bg-red-50 text-red-700"
+                                                                                        : "text-muted-foreground"
+                                                                            )}
+                                                                        >
+                                                                            <span className="font-black">{String.fromCharCode(65 + oi)}.</span>
+                                                                            <span className="flex-1">{opt}</span>
+                                                                            {oi === q.correct_option_index && <CheckCircle2 className="size-4" />}
+                                                                            {Number(answer) === oi && oi !== q.correct_option_index && <X className="size-4" />}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <p className={cn("text-[11px] font-black uppercase", correct ? "text-emerald-600" : "text-red-600")}>
+                                                                    {answer === undefined ? "Not answered" : correct ? "Correct" : "Incorrect"}
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <div key={q.id} className="rounded-2xl border border-blue-100 bg-blue-50/30 p-4 space-y-3">
+                                                            <p className="text-sm font-semibold text-foreground">
+                                                                {qi + 1}. {q.text}
+                                                            </p>
+                                                            <div className="rounded-xl bg-white border border-[#E8E4D8] p-3">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                                                                    Fellow&apos;s answer
+                                                                </p>
+                                                                <p className="text-sm font-serif italic text-[#1B4332] whitespace-pre-wrap">
+                                                                    {(answer as string) || "— no answer —"}
+                                                                </p>
+                                                            </div>
+                                                            {q.correct_written_answer && (
+                                                                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1">
+                                                                        Rubric / model answer
+                                                                    </p>
+                                                                    <p className="text-xs text-emerald-900 whitespace-pre-wrap">{q.correct_written_answer}</p>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center gap-3">
+                                                                <label className="text-[11px] font-black uppercase tracking-widest text-blue-700">
+                                                                    Award (0–1)
+                                                                </label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={1}
+                                                                    step={0.1}
+                                                                    value={
+                                                                        drafts[attempt.id]?.[q.id] ?? ""
+                                                                    }
+                                                                    onChange={(e) =>
+                                                                        setWrittenScore(
+                                                                            attempt.id,
+                                                                            q.id,
+                                                                            Math.max(0, Math.min(1, Number(e.target.value)))
+                                                                        )
+                                                                    }
+                                                                    className="w-28 rounded-xl"
+                                                                    placeholder="0 – 1"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {attempt.competency_results.some((r) => r.written_total > 0) && (
+                                        <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8E4D8]">
+                                            {hasUngradedWritten && (
+                                                <span className="text-xs text-amber-600 font-medium mr-auto flex items-center gap-1">
+                                                    <Clock className="size-3" /> Written answers still need scores.
+                                                </span>
+                                            )}
+                                            <Button
+                                                onClick={() => handleSaveGrades(attempt)}
+                                                disabled={savingId === attempt.id}
+                                                className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold"
+                                            >
+                                                {savingId === attempt.id ? (
+                                                    <Loader2 className="size-4 animate-spin mr-2" />
+                                                ) : (
+                                                    <Check className="size-4 mr-2" />
+                                                )}
+                                                Save Grades
+                                            </Button>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function FellowProgressTracker({
     fellowId,
     fellowName,
@@ -2429,6 +2737,10 @@ export default function FellowProgressTracker({
         {}
     );
     const [examAttempts, setExamAttempts] = useState<ExamAttempt[]>([]);
+    const [competencyWaveMeta, setCompetencyWaveMeta] = useState<
+        Record<string, { waveNumber: number; waveName: string; displayOrder: number }>
+    >({});
+    const [orderedWaves, setOrderedWaves] = useState<{ number: number; name: string }[]>([]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -2443,6 +2755,8 @@ export default function FellowProgressTracker({
                 _waves,
                 _modules,
                 _examAttempts,
+                _profile,
+                _waveComps,
             ] = await Promise.all([
                 FellowProgressService.getPortfoliosByFellow(userId),
                 FellowProgressService.getPhaseProgressByFellow(userId),
@@ -2453,6 +2767,8 @@ export default function FellowProgressTracker({
                 FellowProgressService.getAllWaves(),
                 FellowProgressService.getGroundingModules(),
                 ExamService.getAttemptsByUser(userId),
+                FellowService.getFellowProfile(userId),
+                FellowProgressService.getAllWaveCompetencies(),
             ]);
 
             setPortfolios(
@@ -2468,6 +2784,35 @@ export default function FellowProgressTracker({
             setWaveLookup(_waves);
             setGmLookup(Object.fromEntries(_modules.map((m) => [m.id, m])));
             setExamAttempts(_examAttempts);
+
+            // Build wave -> competency ordering for this fellow's cohort.
+            const cohortId = _profile?.cohort_id;
+            const cohortWaves = (cohortId ? _waves.filter((w) => w.cohort_id === cohortId) : [])
+                .sort((a, b) => a.number - b.number);
+            setOrderedWaves(
+                cohortWaves.map((w) => ({ number: w.number, name: w.name || `Wave ${w.number}` }))
+            );
+            const waveById: Record<string, Wave> = Object.fromEntries(cohortWaves.map((w) => [w.id, w]));
+            const meta: Record<string, { waveNumber: number; waveName: string; displayOrder: number }> = {};
+            _waveComps.forEach((wc) => {
+                const w = waveById[wc.wave_id];
+                if (!w) return;
+                const candidate = {
+                    waveNumber: w.number,
+                    waveName: w.name || `Wave ${w.number}`,
+                    displayOrder: wc.display_order ?? Number.MAX_SAFE_INTEGER,
+                };
+                const current = meta[wc.competency_id];
+                if (
+                    !current ||
+                    candidate.waveNumber < current.waveNumber ||
+                    (candidate.waveNumber === current.waveNumber &&
+                        candidate.displayOrder < current.displayOrder)
+                ) {
+                    meta[wc.competency_id] = candidate;
+                }
+            });
+            setCompetencyWaveMeta(meta);
         } catch (e) {
             console.error("Failed to fetch fellow tracking data:", e);
         } finally {
@@ -2664,21 +3009,21 @@ export default function FellowProgressTracker({
                         progress={progress}
                         biLookup={biLookup}
                         compLookup={compLookup}
-                        groundingResult={groundingResults[0]}
-                        biLookup={biLookup}
-                        compLookup={compLookup}
                     />
                 );
             case "detail":
                 return (
-                    <DetailExamView
-                        groundingResults={groundingResults}
-                        waveResults={waveResults}
-                        waves={waveLookup}
-                        gmLookup={gmLookup}
-                        onUpdateExamScore={handleUpdateExamScore}
-                        onUpdateGroundingScore={handleUpdateGroundingScore}
-                    />
+                    <div className="space-y-10">
+                        <ExaminationReviewPanel userId={userId} />
+                        <DetailExamView
+                            groundingResults={groundingResults}
+                            waveResults={waveResults}
+                            waves={waveLookup}
+                            gmLookup={gmLookup}
+                            onUpdateExamScore={handleUpdateExamScore}
+                            onUpdateGroundingScore={handleUpdateGroundingScore}
+                        />
+                    </div>
                 );
             case "competency":
                 return (
@@ -2713,6 +3058,8 @@ export default function FellowProgressTracker({
                         compLookup={compLookup}
                         groundingResults={groundingResults}
                         examAttempts={examAttempts}
+                        competencyWaveMeta={competencyWaveMeta}
+                        orderedWaves={orderedWaves}
                         onUpdateCompExamScore={handleUpdateCompExamScore}
                     />
                 );

@@ -5,6 +5,7 @@ import FellowPortfolio from "./FellowPortfolio";
 import { FellowTabKey, getFellowTab } from "./fellowTabs";
 import { JSX } from "react";
 import FellowWavesView from "./FellowWavesView";
+import { useFellowDashboard } from "@/hooks/use-dashboard";
 
 interface FellowTabContentProps {
   tab?: string;
@@ -12,7 +13,9 @@ interface FellowTabContentProps {
 }
 
 export default function FellowTabContent({ tab, fellowId }: FellowTabContentProps) {
+  const { data: dashboardData } = useFellowDashboard(fellowId);
   const activeTab = getFellowTab(tab);
+  const hasEnabledExams = (dashboardData?.examinations || []).some((exam: any) => exam?.is_enabled === true);
 
   // Handle dynamic wave tabs
   if (activeTab.startsWith('wave-')) {
@@ -24,7 +27,7 @@ export default function FellowTabContent({ tab, fellowId }: FellowTabContentProp
     dashboard: <FellowDashboard fellowId={fellowId} />,
     learning: <FellowGroundingModules fellowId={fellowId} />,
     portfolio: <FellowPortfolio fellowId={fellowId} />,
-    exams: <FellowExaminationsTab fellowId={fellowId} />,
+    exams: hasEnabledExams ? <FellowExaminationsTab fellowId={fellowId} /> : <FellowDashboard fellowId={fellowId} />,
     cohort: <div className="p-8 bg-white rounded-3xl border border-[#E8E4D8]">Cohort Info - Coming Soon</div>,
     schedule: <div className="p-8 bg-white rounded-3xl border border-[#E8E4D8]">Schedule - Coming Soon</div>,
   };

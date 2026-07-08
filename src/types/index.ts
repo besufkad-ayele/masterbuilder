@@ -434,6 +434,8 @@ export interface FellowDashboardState {
   groundingResults: GroundingResult[];
   examAttempts: any[]; // Using any[] for ExamAttempt if not exported from types
   exams: any[];        // Using any[] for Exam if not exported from types
+  examinations?: any[]; // New examination entities targeting this fellow
+  examinationAttempts?: any[]; // New examination attempts/drafts for this fellow
   behavioralIndicators: BehavioralIndicator[];
   notifications: LDPNotification[];
 }
