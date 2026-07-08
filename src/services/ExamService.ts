@@ -442,8 +442,14 @@ export const ExamService = {
         await setDoc(ref, stripUndefinedDeep({ ...current, ...updated, draft_state: null }), { merge: true });
         console.log('[ExamService.submitExaminationAttempt] examination_attempts doc written');
 
-        await this.mirrorToLegacyAttempts(current, competency_results, status);
-        console.log('[ExamService.submitExaminationAttempt] legacy exam_attempts mirrored — done');
+        // Mirroring to the legacy `exam_attempts` collection must never block the real
+        // submission (e.g. if security rules differ between the two collections).
+        try {
+            await this.mirrorToLegacyAttempts({ ...current, ...updated } as ExaminationAttempt, competency_results, status);
+            console.log('[ExamService.submitExaminationAttempt] legacy exam_attempts mirrored — done');
+        } catch (mirrorErr) {
+            console.warn('[ExamService.submitExaminationAttempt] legacy mirror failed (non-fatal)', mirrorErr);
+        }
         return { ...current, ...updated } as ExaminationAttempt;
     },
 
@@ -480,7 +486,11 @@ export const ExamService = {
         };
         await setDoc(ref, stripUndefinedDeep({ ...current, ...updated }), { merge: true });
 
-        await this.mirrorToLegacyAttempts(current, competency_results, status);
+        try {
+            await this.mirrorToLegacyAttempts({ ...current, ...updated } as ExaminationAttempt, competency_results, status);
+        } catch (mirrorErr) {
+            console.warn('[ExamService.gradeExaminationAttempt] legacy mirror failed (non-fatal)', mirrorErr);
+        }
         return { ...current, ...updated } as ExaminationAttempt;
     },
 

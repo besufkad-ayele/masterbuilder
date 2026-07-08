@@ -363,7 +363,8 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
             console.log("[Exam Submit] Dashboard refreshed. Flow complete.");
         } catch (e) {
             console.error("[Exam Submit] FAILED to submit examination", e);
-            pushNotice("error", "Failed to submit examination. Please try again.");
+            const msg = e instanceof Error ? e.message : String(e);
+            pushNotice("error", `Submit failed: ${msg}`);
         } finally {
             setIsSubmitting(false);
             submissionGuardRef.current = false;

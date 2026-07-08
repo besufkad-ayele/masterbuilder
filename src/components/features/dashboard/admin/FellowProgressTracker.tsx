@@ -2531,12 +2531,22 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
 
     return (
         <div className="space-y-6 sm:space-y-8">
-            <SectionHeader
-                icon={GraduationCap}
-                title="Examination Review & Grading"
-                description="Review answers and award marks for written responses."
-                color="bg-blue-100 text-blue-700"
-            />
+            <div className="flex items-start justify-between gap-4">
+                <SectionHeader
+                    icon={GraduationCap}
+                    title="Examination Review & Grading"
+                    description="Review answers and award marks for written responses."
+                    color="bg-blue-100 text-blue-700"
+                />
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => load()}
+                    className="shrink-0 rounded-xl"
+                >
+                    Refresh
+                </Button>
+            </div>
 
             {notice && (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
