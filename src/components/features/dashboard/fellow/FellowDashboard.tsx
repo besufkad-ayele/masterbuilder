@@ -103,8 +103,10 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
           const compExamAttempt = (fellowState.examAttempts || []).find((a: any) => 
             (compExam && a.exam_id === compExam.id) || a.exam_id === comp.id
           );
-          const hasExamAttempt = !!compExamAttempt;
-          const examScore = compExamAttempt?.score || 0;
+          const gradedExamAttempt =
+            compExamAttempt?.status === "graded" ? compExamAttempt : undefined;
+          const hasExamAttempt = !!gradedExamAttempt;
+          const examScore = gradedExamAttempt?.score || 0;
 
           const compositeScore = FellowProgressService.calculateCompetencyTotalScore(
             biIds,

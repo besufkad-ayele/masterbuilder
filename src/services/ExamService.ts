@@ -111,9 +111,30 @@ export interface CompetencyResult {
     mcq_correct: number;
     mcq_total: number;
     written_total: number;
+    marks_earned: number; // each question is worth 1 mark (written may be partial 0..1)
+    marks_total: number;
     score: number; // 0-100
     graded: boolean; // true when there are no ungraded written questions
 }
+
+/** Format marks earned out of total (1 mark per question). */
+export const formatExaminationMarks = (earned: number, total: number): string => {
+    const earnedLabel = Number.isInteger(earned) ? String(earned) : earned.toFixed(1);
+    return `${earnedLabel}/${total}`;
+};
+
+/** Hide scores from fellows until an admin publishes results. */
+export const sanitizeExaminationAttemptForFellow = (
+    attempt: ExaminationAttempt
+): ExaminationAttempt => {
+    if (attempt.status !== 'submitted') return attempt;
+    return {
+        ...attempt,
+        score: 0,
+        passed: false,
+        competency_results: [],
+    };
+};
 
 export interface ExaminationAttemptDraftState {
     current_competency_index: number;
@@ -194,6 +215,8 @@ export const computeExaminationScores = (
             mcq_correct: mcqCorrect,
             mcq_total: mcqTotal,
             written_total: writtenTotal,
+            marks_earned: compEarned,
+            marks_total: compQuestions,
             score: compScore,
             graded: !compUngraded,
         });
@@ -403,7 +426,7 @@ export const ExamService = {
         }), { merge: true });
     },
 
-    /** Submit the attempt: grade MCQs instantly, mark written as pending admin review. */
+    /** Submit the attempt. Scores are computed for admin review but stay hidden from fellows until approved. */
     async submitExaminationAttempt(
         examinationId: string,
         userId: string,
@@ -425,7 +448,7 @@ export const ExamService = {
             current.written_scores || {}
         );
         const now = new Date().toISOString();
-        const status: ExaminationAttempt['status'] = has_written ? 'submitted' : 'graded';
+        const status: ExaminationAttempt['status'] = 'submitted';
         console.log('[ExamService.submitExaminationAttempt] computed scores', { score, passed, has_written, status, competency_results });
 
         const updated: Partial<ExaminationAttempt> = {
@@ -450,7 +473,25 @@ export const ExamService = {
         } catch (mirrorErr) {
             console.warn('[ExamService.submitExaminationAttempt] legacy mirror failed (non-fatal)', mirrorErr);
         }
-        return { ...current, ...updated } as ExaminationAttempt;
+        return sanitizeExaminationAttemptForFellow({ ...current, ...updated } as ExaminationAttempt);
+    },
+
+    /** Admin publishes MCQ-only examination results (no written questions). */
+    async approveExaminationResults(
+        attemptDocId: string,
+        approvedBy: string
+    ): Promise<ExaminationAttempt> {
+        const ref = doc(db, 'examination_attempts', attemptDocId);
+        const existing = await getDoc(ref);
+        if (!existing.exists()) throw new Error('Examination attempt not found');
+        const current = { id: existing.id, ...existing.data() } as ExaminationAttempt;
+        if (current.status !== 'submitted') {
+            throw new Error('Only submitted examinations can be approved');
+        }
+        if ((current.competency_results || []).some((r) => r.written_total > 0)) {
+            throw new Error('Examinations with written questions must be graded individually');
+        }
+        return this.gradeExaminationAttempt(attemptDocId, {}, approvedBy);
     },
 
     /** Admin grades written answers; recompute scores and finalize status. */
@@ -508,13 +549,14 @@ export const ExamService = {
             results.map((r) => {
                 const legacyId = `${attempt.examination_id}__${r.competency_id}__${attempt.user_id}`;
                 const ref = doc(db, 'exam_attempts', legacyId);
+                const published = status === 'graded';
                 return setDoc(ref, stripUndefinedDeep({
                     id: legacyId,
                     exam_id: r.competency_id,
                     examination_id: attempt.examination_id,
                     user_id: attempt.user_id,
-                    score: r.score,
-                    passed: r.score >= 75,
+                    score: published ? r.score : 0,
+                    passed: published ? r.score >= 75 : false,
                     status: status === 'draft' ? 'submitted' : status,
                     submitted_at: attempt.submitted_at || now,
                     updated_at: now,

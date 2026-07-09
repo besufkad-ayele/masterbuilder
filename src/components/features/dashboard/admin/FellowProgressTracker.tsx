@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { FellowProgressService } from "@/services/FellowProgressService";
 import { FellowService } from "@/services/FellowService";
-import { ExamService, ExamAttempt, ExaminationAttempt } from "@/services/ExamService";
+import { ExamService, ExamAttempt, ExaminationAttempt, formatExaminationMarks } from "@/services/ExamService";
 import {
     Portfolio,
     PhaseProgress,
@@ -2527,6 +2527,21 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
         }
     };
 
+    const handleApproveResults = async (attempt: ExaminationAttempt) => {
+        setSavingId(attempt.id);
+        try {
+            const updated = await ExamService.approveExaminationResults(attempt.id, "Admin");
+            setAttempts((prev) => prev.map((a) => (a.id === attempt.id ? updated : a)));
+            setNotice("Results approved and published to the fellow.");
+            window.setTimeout(() => setNotice(null), 2500);
+        } catch (e) {
+            console.error("Failed to approve results", e);
+            setNotice("Failed to approve results.");
+        } finally {
+            setSavingId(null);
+        }
+    };
+
     if (loading) return <LoadingState />;
 
     return (
@@ -2559,7 +2574,13 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
             ) : (
                 <div className="space-y-6">
                     {attempts.map((attempt) => {
-                        const hasUngradedWritten = attempt.competency_results.some((r) => !r.graded);
+                        const competencyResults = attempt.competency_results || [];
+                        const hasUngradedWritten = competencyResults.some((r) => !r.graded);
+                        const hasWrittenQuestions =
+                            competencyResults.some((r) => r.written_total > 0) ||
+                            (attempt.competency_snapshots || []).some((snap) =>
+                                snap.questions.some((q) => q.type === "written")
+                            );
                         return (
                             <Card key={attempt.id} className="rounded-3xl border-2 border-[#E8E4D8] overflow-hidden">
                                 <CardHeader className="bg-muted/30 flex flex-row items-center justify-between gap-3 flex-wrap">
@@ -2580,12 +2601,23 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                                         >
                                             {attempt.status === "graded" ? "Graded" : "Awaiting Review"}
                                         </Badge>
-                                        <Badge variant="outline" className="rounded-full font-black">{attempt.score}%</Badge>
+                                        <Badge variant="outline" className="rounded-full font-black">
+                                            {formatExaminationMarks(
+                                                competencyResults.reduce(
+                                                    (sum, r) => sum + (r.marks_earned ?? r.mcq_correct),
+                                                    0
+                                                ),
+                                                competencyResults.reduce(
+                                                    (sum, r) => sum + (r.marks_total ?? r.mcq_total + r.written_total),
+                                                    0
+                                                )
+                                            )}
+                                        </Badge>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-5 space-y-6">
                                     {attempt.competency_snapshots.map((snap) => {
-                                        const result = attempt.competency_results.find(
+                                        const result = competencyResults.find(
                                             (r) => r.competency_id === snap.competency_id
                                         );
                                         return (
@@ -2596,7 +2628,11 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                                                     </h4>
                                                     {result && (
                                                         <span className="text-xs font-bold text-muted-foreground">
-                                                            {result.mcq_correct}/{result.mcq_total} MCQ • {result.score}%
+                                                            {formatExaminationMarks(
+                                                                result.marks_earned ?? result.mcq_correct,
+                                                                result.marks_total ?? result.mcq_total + result.written_total
+                                                            )}{" "}
+                                                            marks
                                                         </span>
                                                     )}
                                                 </div>
@@ -2659,7 +2695,7 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                                                             )}
                                                             <div className="flex items-center gap-3">
                                                                 <label className="text-[11px] font-black uppercase tracking-widest text-blue-700">
-                                                                    Award (0–1)
+                                                                    Marks (0–1 per question)
                                                                 </label>
                                                                 <Input
                                                                     type="number"
@@ -2687,7 +2723,7 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                                         );
                                     })}
 
-                                    {attempt.competency_results.some((r) => r.written_total > 0) && (
+                                    {hasWrittenQuestions ? (
                                         <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8E4D8]">
                                             {hasUngradedWritten && (
                                                 <span className="text-xs text-amber-600 font-medium mr-auto flex items-center gap-1">
@@ -2705,6 +2741,21 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                                                     <Check className="size-4 mr-2" />
                                                 )}
                                                 Save Grades
+                                            </Button>
+                                        </div>
+                                    ) : attempt.status === "submitted" && (
+                                        <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8E4D8]">
+                                            <Button
+                                                onClick={() => handleApproveResults(attempt)}
+                                                disabled={savingId === attempt.id}
+                                                className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold"
+                                            >
+                                                {savingId === attempt.id ? (
+                                                    <Loader2 className="size-4 animate-spin mr-2" />
+                                                ) : (
+                                                    <Check className="size-4 mr-2" />
+                                                )}
+                                                Approve Results
                                             </Button>
                                         </div>
                                     )}

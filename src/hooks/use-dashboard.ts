@@ -7,7 +7,7 @@ import { AdminManagementService } from '@/services/AdminManagementService';
 import { groundingService } from '@/services/groundingService';
 import { competencyService } from '@/services/competencyService';
 import { AdminDashboardState, FellowDashboardState, User, CompetencyLibrary, LDPNotification } from '@/types';
-import { ExamService } from '@/services/ExamService';
+import { ExamService, sanitizeExaminationAttemptForFellow } from '@/services/ExamService';
 import { firebaseService } from '@/services/firebaseService';
 
 export function useAdminDashboard() {
@@ -171,7 +171,7 @@ export function useFellowDashboard(userId?: string) {
         examAttempts: examAttempts,
         exams: exams,
         examinations: examinations,
-        examinationAttempts: examinationAttempts,
+        examinationAttempts: examinationAttempts.map(sanitizeExaminationAttemptForFellow),
         behavioralIndicators: behavioralIndicators,
         notifications: notifications
       } as any); // Use any to avoid strict type check for now until types are updated

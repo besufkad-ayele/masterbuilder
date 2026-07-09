@@ -11,11 +11,9 @@ import {
     Loader2,
     Lock,
     CheckCircle2,
-    AlertCircle,
     GraduationCap,
     Clock,
     PlayCircle,
-    Award,
     Edit3,
     ChevronRight,
     ChevronLeft,
@@ -27,6 +25,7 @@ import {
     Examination,
     ExaminationAttempt,
     ExaminationCompetencySnapshot,
+    formatExaminationMarks,
 } from "@/services/ExamService";
 import { cn } from "@/lib/utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -61,6 +60,9 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
     const [isStarting, setIsStarting] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [resultAttempt, setResultAttempt] = useState<ExaminationAttempt | null>(null);
+    const [wasForcedSubmit, setWasForcedSubmit] = useState(false);
+    const [submittedAnsweredCount, setSubmittedAnsweredCount] = useState(0);
+    const [submittedTotalQuestions, setSubmittedTotalQuestions] = useState(0);
     const [notice, setNotice] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
 
     const submissionGuardRef = useRef(false);
@@ -188,6 +190,9 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
             (examinations.find((e) => e.id === att.examination_id)?.time_allocated_minutes || 60) * 60
         );
         setResultAttempt(null);
+        setWasForcedSubmit(false);
+        setSubmittedAnsweredCount(0);
+        setSubmittedTotalQuestions(0);
         setPhase("running");
     };
 
@@ -357,6 +362,20 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                 window.dispatchEvent(new Event("exam-submitted"));
             }
             setResultAttempt(submitted);
+            setWasForcedSubmit(forced);
+            setSubmittedAnsweredCount(
+                (submitted.competency_snapshots || []).reduce(
+                    (sum, s) =>
+                        sum +
+                        s.questions.filter(
+                            (q) => answers[q.id] !== undefined && answers[q.id] !== ""
+                        ).length,
+                    0
+                )
+            );
+            setSubmittedTotalQuestions(
+                (submitted.competency_snapshots || []).reduce((sum, s) => sum + s.questions.length, 0)
+            );
             setPhase("result");
             console.log("[Exam Submit] Refreshing dashboard data...");
             await refreshDashboard();
@@ -404,62 +423,47 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
 
     /* ─── RESULT SCREEN (full-screen overlay) ───────────────────────────── */
     if (phase === "result" && resultAttempt) {
-        const pending = resultAttempt.status === "submitted"; // has ungraded written questions
         return (
             <>
                 {noticeBanner}
                 <div className="fixed inset-0 z-[300] bg-[#FDFCF6] overflow-y-auto">
                     <div className="max-w-2xl mx-auto px-6 py-12 space-y-8 animate-in zoom-in duration-500">
                         <Card className="rounded-[3rem] border-2 border-[#E8E4D8] overflow-hidden text-center">
-                            <CardHeader className={cn("py-12", pending ? "bg-blue-600" : resultAttempt.passed ? "bg-emerald-500" : "bg-amber-500")}>
+                            <CardHeader className="py-12 bg-[#1B4332]">
                                 <div className="size-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mx-auto mb-6 text-white border-4 border-white/20">
-                                    {pending ? <Clock size={48} /> : resultAttempt.passed ? <Award size={48} /> : <AlertCircle size={48} />}
+                                    {wasForcedSubmit ? <Clock size={48} /> : <CheckCircle2 size={48} />}
                                 </div>
                                 <h2 className="text-4xl font-serif font-black text-white italic">
-                                    {pending ? "Submission Received" : resultAttempt.passed ? "Success!" : "Keep Pushing"}
+                                    {wasForcedSubmit ? "Time's Up" : "Submitted Successfully"}
                                 </h2>
                                 <p className="text-white/80 font-medium">
-                                    {pending ? "Written responses awaiting admin review" : "Examination Result"}
+                                    {wasForcedSubmit ? "Your examination was submitted automatically" : "Your examination has been received"}
                                 </p>
                             </CardHeader>
                             <CardContent className="py-10 px-8 space-y-8">
-                                {!pending && (
-                                    <div>
-                                        <p className="text-sm font-black uppercase tracking-[0.2em] text-[#8B9B7E] mb-2">Overall Score</p>
-                                        <div className="text-7xl font-serif font-black text-[#1B4332]">{resultAttempt.score}%</div>
+                                {wasForcedSubmit && (
+                                    <div className="rounded-2xl border border-[#E8E4D8] bg-white p-6">
+                                        <p className="text-sm font-black uppercase tracking-[0.2em] text-[#8B9B7E] mb-2">
+                                            Questions Answered
+                                        </p>
+                                        <div className="text-5xl font-serif font-black text-[#1B4332]">
+                                            {submittedAnsweredCount}/{submittedTotalQuestions}
+                                        </div>
                                     </div>
                                 )}
-                                {pending && (
-                                    <p className="text-[#1B4332]/70 italic font-serif leading-relaxed">
-                                        Multiple-choice answers are scored. Your written responses will be reviewed by the
-                                        academic team, after which your final result will appear here.
-                                    </p>
-                                )}
 
-                                <div className="space-y-2 text-left">
-                                    {resultAttempt.competency_results.map((r) => (
-                                        <div key={r.competency_id} className="flex items-center justify-between p-4 rounded-2xl border border-[#E8E4D8] bg-white">
-                                            <div className="min-w-0">
-                                                <p className="font-bold text-sm truncate">{r.competency_title}</p>
-                                                <p className="text-[10px] text-muted-foreground">
-                                                    {r.mcq_correct}/{r.mcq_total} MCQ correct
-                                                    {r.written_total > 0 ? ` • ${r.written_total} written` : ""}
-                                                </p>
-                                            </div>
-                                            {r.graded ? (
-                                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">{r.score}%</Badge>
-                                            ) : (
-                                                <Badge className="bg-blue-100 text-blue-700 border-blue-200">Pending</Badge>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
+                                <p className="text-[#1B4332]/70 italic font-serif leading-relaxed">
+                                    {wasForcedSubmit
+                                        ? "Your answers have been saved. Your exam result will be visible soon after approval by the academic team."
+                                        : "Thank you for completing your examination. Your result will be displayed after approval by the academic team."}
+                                </p>
 
                                 <Button
                                     onClick={() => {
                                         setPhase("hub");
                                         setAttempt(null);
                                         setResultAttempt(null);
+                                        setWasForcedSubmit(false);
                                     }}
                                     className="w-full h-14 rounded-2xl bg-[#1B4332] text-white font-bold text-lg shadow-xl shadow-primary/20"
                                 >
@@ -755,9 +759,18 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                         let statusLabel = "Ready";
                         let statusTone = "text-blue-600";
                         if (isDraft) { statusLabel = "In Progress"; statusTone = "text-amber-600"; }
-                        else if (isSubmitted) { statusLabel = "Completed"; statusTone = "text-emerald-600"; }
+                        else if (isSubmitted) { statusLabel = "Submitted"; statusTone = "text-blue-600"; }
                         else if (isGraded) { statusLabel = att?.passed ? "Passed" : "Not Passed"; statusTone = att?.passed ? "text-emerald-600" : "text-red-600"; }
                         else if (!isPortalOpen) { statusLabel = "Portal Closed"; statusTone = "text-stone-500"; }
+
+                        const totalMarksEarned = (att?.competency_results || []).reduce(
+                            (sum, r) => sum + (r.marks_earned ?? r.mcq_correct),
+                            0
+                        );
+                        const totalMarks = (att?.competency_results || []).reduce(
+                            (sum, r) => sum + (r.marks_total ?? r.mcq_total + r.written_total),
+                            0
+                        );
 
                         return (
                             <Card
@@ -766,21 +779,28 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                     "rounded-[2.5rem] border-2 transition-all duration-500 overflow-hidden relative",
                                     isGraded && att?.passed
                                         ? "bg-[#1B4332]/5 border-[#1B4332]/20"
-                                        : startable
-                                            ? "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-2xl"
-                                            : "bg-stone-50 border-stone-200"
+                                        : isSubmitted
+                                            ? "bg-white border-blue-100"
+                                            : startable
+                                                ? "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-2xl"
+                                                : "bg-stone-50 border-stone-200"
                                 )}
                             >
                                 <CardHeader className="pb-2">
                                     <div className="flex justify-between items-start">
-                                        <div className={cn("size-12 rounded-2xl flex items-center justify-center mb-4", isGraded && att?.passed ? "bg-emerald-500 text-white" : "bg-primary/10 text-primary")}>
-                                            <GraduationCap size={24} />
+                                        <div className={cn(
+                                            "size-12 rounded-2xl flex items-center justify-center mb-4",
+                                            isGraded && att?.passed ? "bg-emerald-500 text-white"
+                                                : isSubmitted ? "bg-blue-500 text-white"
+                                                    : "bg-primary/10 text-primary"
+                                        )}>
+                                            {isSubmitted ? <CheckCircle2 size={24} /> : <GraduationCap size={24} />}
                                         </div>
                                         <Badge
                                             className={cn(
                                                 "border-none rounded-lg px-3 py-1 font-black text-[10px] uppercase",
                                                 isDraft ? "bg-amber-500/10 text-amber-700"
-                                                    : isSubmitted ? "bg-emerald-500/10 text-emerald-700"
+                                                    : isSubmitted ? "bg-blue-500/10 text-blue-700"
                                                         : isGraded ? (att?.passed ? "bg-emerald-500/10 text-emerald-700" : "bg-red-500/10 text-red-700")
                                                             : isPortalOpen ? "bg-blue-500/10 text-blue-700" : "bg-stone-200 text-stone-500"
                                             )}
@@ -799,17 +819,46 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                         <span className="flex items-center gap-1"><Clock className="size-3" /> {exam.time_allocated_minutes}m</span>
                                     </div>
 
-                                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                                        <span className="text-[#8B9B7E]">Status</span>
-                                        <span className={statusTone}>{statusLabel}</span>
-                                    </div>
+                                    {!isSubmitted && (
+                                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                            <span className="text-[#8B9B7E]">Status</span>
+                                            <span className={statusTone}>{statusLabel}</span>
+                                        </div>
+                                    )}
 
-                                    {isGraded && (
-                                        <div className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-[#E8E4D8]">
-                                            <div className="size-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 font-black text-xs">
-                                                {att.score}%
+                                    {isSubmitted && (
+                                        <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-5 text-center">
+                                            <p className="text-xs text-[#1B4332]/80 leading-relaxed">
+                                                Examination ended — Thank you, you have submitted your answers. Your result will appear here after approval.
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {isGraded && att?.competency_results && att.competency_results.length > 0 && (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#8B9B7E]">
+                                                <span>Overall (1 mark per question)</span>
+                                                <span className="text-[#1B4332]">
+                                                    {formatExaminationMarks(totalMarksEarned, totalMarks)}
+                                                </span>
                                             </div>
-                                            <p className="text-xs text-[#1B4332] font-bold">Final graded score</p>
+                                            {att.competency_results.map((r) => {
+                                                const earned = r.marks_earned ?? r.mcq_correct;
+                                                const total = r.marks_total ?? r.mcq_total + r.written_total;
+                                                return (
+                                                    <div
+                                                        key={r.competency_id}
+                                                        className="flex items-center justify-between p-3 bg-white/60 rounded-xl border border-[#E8E4D8]"
+                                                    >
+                                                        <p className="text-xs text-[#1B4332] font-bold truncate pr-2">
+                                                            {r.competency_title}
+                                                        </p>
+                                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 shrink-0 font-black">
+                                                            {formatExaminationMarks(earned, total)}
+                                                        </Badge>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
 
