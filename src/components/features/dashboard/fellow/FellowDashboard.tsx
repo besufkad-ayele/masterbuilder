@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useFellowDashboard } from '@/hooks/use-dashboard';
 import LoadingSpinner from '@/components/ui/loading-spinner';
-import { FellowProgressService } from '@/services/FellowProgressService';
+import { FellowProgressService, buildCompetencyPerformance } from '@/services/FellowProgressService';
 import { Wave, Competency, PhaseProgress, Portfolio, WaveCompetency } from '@/types';
 import {
   TrendingUp,
@@ -82,63 +82,19 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       const comps = (fellowState.competencies as Competency[])
         .filter(c => compIds.has(c.id))
         .map(comp => {
-          // Find BIs for this competency using composite ID format: ${compId}_${biCode}
-          // Progress records are now stored with behavioral_indicator_id = "${competencyId}_${biCode}"
-          const compositePrefix = `${comp.id}_`;
-          const biIds = (fellowState.progress as PhaseProgress[])
-            .filter(p => p.behavioral_indicator_id.startsWith(compositePrefix))
-            .map(p => p.behavioral_indicator_id)
-            .filter((v, i, a) => a.indexOf(v) === i);
-
-          // Fallback: also check legacy format from behavioral_indicators collection
-          if (biIds.length === 0) {
-            const competencyBIs = (fellowState.behavioralIndicators || []).filter((bi: any) => bi.competency_id === comp.id);
-            if (competencyBIs.length > 0) {
-              biIds.push(...competencyBIs.map((bi: any) => bi.id));
-            }
-          }
-
-          const compExam = (fellowState.exams || []).find((e: any) => e.competency_id === comp.id);
-          // Look for attempt by digital exam ID OR direct competency ID (manual insertion)
-          const compExamAttempt = (fellowState.examAttempts || []).find((a: any) => 
-            (compExam && a.exam_id === compExam.id) || a.exam_id === comp.id
-          );
-          const gradedExamAttempt =
-            compExamAttempt?.status === "graded" ? compExamAttempt : undefined;
-          const hasExamAttempt = !!gradedExamAttempt;
-          const examScore = gradedExamAttempt?.score || 0;
-
-          const compositeScore = FellowProgressService.calculateCompetencyTotalScore(
-            biIds,
-            fellowState.progress as PhaseProgress[],
-            fellowState.portfolios as Portfolio[],
-            gScore * 10, // Pass as out of 100
-            examScore
-          );
-
-          const biBreakdown = biIds.map((biId: string) => {
-            const biInfo = (fellowState.behavioralIndicators || []).find((bi: any) => bi.id === biId);
-            // Extract the short BI code from composite format (e.g. "compId_BI1" -> "BI1")
-            const shortCode = biId.includes('_') ? biId.split('_').slice(1).join('_') : biId;
-            const biProgress = (fellowState.progress as PhaseProgress[]).filter(p => p.behavioral_indicator_id === biId);
-            const biPortfolios = (fellowState.portfolios as Portfolio[]).filter(p => p.behavioral_indicator_id === biId);
-
-            const believePhase = biProgress.find(p => p.phase_type === 'believe');
-            const knowPhase = biProgress.find(p => p.phase_type === 'know');
-            const approvedPortfolio = biPortfolios.find(p => p.status === 'approved');
-
-            return {
-              id: biId,
-              title: biInfo?.title || shortCode || 'Indicator',
-              description: biInfo?.description || '',
-              score: FellowProgressService.calculateBIScore(biProgress, biPortfolios),
-              believePassed: believePhase?.believe_passed || false,
-              knowScore: knowPhase?.know_score || 0,
-              doScore: approvedPortfolio?.score || 0,
-              status: believePhase?.believe_passed ? (approvedPortfolio ? 'Mastered' : 'Developing') : 'Initial'
-            };
+          const performance = buildCompetencyPerformance(comp, {
+            progress: fellowState.progress as PhaseProgress[],
+            portfolios: fellowState.portfolios as Portfolio[],
+            behavioralIndicators: fellowState.behavioralIndicators || [],
+            examAttempts: fellowState.examAttempts || [],
+            exams: fellowState.exams || [],
+            groundingScoreOutOf10: gScore,
+            biLookup: Object.fromEntries(
+              (fellowState.behavioralIndicators || []).map((bi: any) => [bi.id, bi])
+            ),
           });
 
+          const biIds = performance.biBreakdown.map((bi) => bi.id);
           const phases = ['believe', 'know', 'do'] as const;
           const completedPhases = phases.filter(phase =>
             (fellowState.progress as PhaseProgress[]).some(p => biIds.includes(p.behavioral_indicator_id) && p.phase_type === phase && p.completed_at)
@@ -148,12 +104,12 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
             ...comp,
             completedPhases,
             totalPhases: 3,
-            progressPercent: compositeScore,
-            biBreakdown,
-            groundingContribution: gScore, // gScore is inherently out of 10
-            examContribution: Math.round((examScore / 100) * 20),
-            examScore,
-            hasExamAttempt
+            progressPercent: performance.compositeScore,
+            biBreakdown: performance.biBreakdown,
+            groundingContribution: performance.groundingContribution,
+            examContribution: performance.examContribution,
+            examScore: performance.examScore,
+            hasExamAttempt: performance.hasExamAttempt,
           };
         }).sort((a, b) => a.title.localeCompare(b.title));
 
@@ -438,8 +394,8 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-[#C5A059] mb-4">Grounding Module</p>
           <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-serif font-bold text-[#1B4332]">{groundingScore}%</span>
-            <span className="text-sm font-medium text-[#1B4332]/40">Score</span>
+            <span className="text-4xl font-serif font-bold text-[#1B4332]">{groundingScore}</span>
+            <span className="text-sm font-medium text-[#1B4332]/40">/10</span>
           </div>
           <p className="text-xs text-[#1B4332]/40 mt-4 leading-relaxed italic">
             Contributes <span className="text-[#C5A059] font-bold">10%</span> weighting to your overall composite performance.
@@ -658,18 +614,39 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                   </div>
 
                   {(() => {
-                    type BreakdownItem = { id: string; title: string; description: string; score: number; believePassed: boolean; knowScore: number; doScore: number; status: string; };
+                    type BreakdownItem = {
+                      id: string;
+                      title: string;
+                      description: string;
+                      score: number;
+                      believePassed: boolean;
+                      knowScore: number;
+                      doScore: number;
+                      knowContribution: number;
+                      doContribution: number;
+                    };
                     const totalBIs = selectedComp.biBreakdown?.length || 0;
                     const believePassedCount = selectedComp.biBreakdown?.filter((bi: BreakdownItem) => bi.believePassed).length || 0;
-                    const sumKnow = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.knowScore > 0 ? Math.round((bi.knowScore / 100) * 20) : 0), 0) || 0;
-                    const sumDo = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.doScore || 0), 0) || 0;
-                    const sumScore = selectedComp.biBreakdown?.reduce((acc: number, bi: BreakdownItem) => acc + (bi.score || 0), 0) || 0;
-
-                    const avgKnow = totalBIs > 0 ? Math.round(sumKnow / totalBIs) : 0;
-                    const avgDo = totalBIs > 0 ? Math.round(sumDo / totalBIs) : 0;
-                    const avgScore = totalBIs > 0 ? Math.round(sumScore / totalBIs) : 0;
+                    const avgKnow = totalBIs > 0
+                      ? Math.round(
+                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.knowContribution, 0) / totalBIs
+                        )
+                      : 0;
+                    const avgDo = totalBIs > 0
+                      ? Math.round(
+                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.doContribution, 0) / totalBIs
+                        )
+                      : 0;
+                    const avgScore = totalBIs > 0
+                      ? Math.round(
+                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.score, 0) / totalBIs
+                        )
+                      : 0;
                     const groundingAdvantage = selectedComp.groundingContribution || 0;
+                    const examContribution = selectedComp.examContribution || 0;
                     const preExamTotal = avgScore + groundingAdvantage;
+                    const finalComposite = selectedComp.progressPercent || 0;
+                    const compositeStatus = finalComposite >= 75 ? "Excellence Met" : "In Development";
 
                     return (
                       <div className="overflow-x-auto">
@@ -713,17 +690,17 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                                 <td className="p-6 text-center">
                                   <span className={cn(
                                     "text-lg font-serif font-bold",
-                                    bi.knowScore > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
+                                    bi.knowContribution > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
                                   )}>
-                                    {bi.knowScore > 0 ? Math.round((bi.knowScore / 100) * 20) : "—"}
+                                    {bi.knowContribution > 0 ? bi.knowContribution : "—"}
                                   </span>
                                 </td>
                                 <td className="p-6 text-center">
                                   <span className={cn(
                                     "text-lg font-serif font-bold",
-                                    bi.doScore > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
+                                    bi.doContribution > 0 ? "text-[#1B4332]" : "text-[#1B4332]/20"
                                   )}>
-                                    {bi.doScore > 0 ? bi.doScore : "—"}
+                                    {bi.doContribution > 0 ? bi.doContribution : "—"}
                                   </span>
                                 </td>
                                 <td className="p-6 text-center">
@@ -740,11 +717,13 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                                 <td className="p-6">
                                   <Badge className={cn(
                                     "border-none text-[9px] font-black uppercase tracking-wider px-3 py-1",
-                                    bi.status === 'Mastered' ? "bg-emerald-500/10 text-emerald-600" :
-                                      bi.status === 'Developing' ? "bg-blue-500/10 text-blue-600" :
+                                    bi.believePassed && bi.doScore > 0 ? "bg-emerald-500/10 text-emerald-600" :
+                                      bi.believePassed ? "bg-blue-500/10 text-blue-600" :
                                         "bg-[#1B4332]/5 text-[#1B4332]/40"
                                   )}>
-                                    {bi.score > 0 ? bi.status : "Not taken yet"}
+                                    {bi.score > 0
+                                      ? (bi.believePassed ? (bi.doScore > 0 ? 'Mastered' : 'Developing') : 'Initial')
+                                      : "Not taken yet"}
                                   </Badge>
                                 </td>
                               </tr>
@@ -780,6 +759,17 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                               </td>
                               <td className="p-4"></td>
                             </tr>
+                            <tr className="border-t border-[#E8E4D8]/50">
+                              <td colSpan={5} className="p-4 px-6 text-right">
+                                <span className="text-xs font-semibold text-[#1B4332]/60 uppercase tracking-widest">Exam Contribution (20%)</span>
+                              </td>
+                              <td className="p-4 px-6 text-center">
+                                <span className="text-xl font-bold text-[#1B4332] flex items-center justify-center gap-1">
+                                  <span>+</span> {examContribution}
+                                </span>
+                              </td>
+                              <td className="p-4"></td>
+                            </tr>
                             <tr className="border-t border-[#C5A059]/30 bg-[#C5A059]/10">
                               <td colSpan={5} className="p-6 text-right">
                                 <span className="text-sm font-black text-[#1B4332] uppercase tracking-wider">Total Value (Pre-Exam)</span>
@@ -788,6 +778,20 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                                 <div className="flex flex-col items-center">
                                   <span className="text-3xl font-serif font-bold text-[#1B4332]">{preExamTotal} <span className="text-lg text-[#1B4332]/50">/ 80</span></span>
                                   <div className="h-1 w-12 bg-[#C5A059] rounded-full mt-1" />
+                                </div>
+                              </td>
+                              <td className="p-6"></td>
+                            </tr>
+                            <tr className="border-t border-[#1B4332]/10 bg-white">
+                              <td colSpan={5} className="p-6 text-right">
+                                <span className="text-sm font-black text-[#1B4332] uppercase tracking-wider">Final Composite</span>
+                              </td>
+                              <td className="p-6 text-center">
+                                <div className="flex flex-col items-center">
+                                  <span className="text-3xl font-serif font-bold text-[#1B4332]">{finalComposite}%</span>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]/40 mt-1">
+                                    {compositeStatus}
+                                  </span>
                                 </div>
                               </td>
                               <td className="p-6"></td>

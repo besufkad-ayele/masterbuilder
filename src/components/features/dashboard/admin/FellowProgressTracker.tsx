@@ -33,7 +33,7 @@ import {
     Check,
     Edit2,
 } from "lucide-react";
-import { FellowProgressService } from "@/services/FellowProgressService";
+import { FellowProgressService, buildCompetencyPerformance } from "@/services/FellowProgressService";
 import { FellowService } from "@/services/FellowService";
 import { ExamService, ExamAttempt, ExaminationAttempt, formatExaminationMarks } from "@/services/ExamService";
 import {
@@ -1241,25 +1241,18 @@ function CompetencyView({
     groundingResults: GroundingResult[];
 }) {
     const compStats = useMemo(() => {
+        const behavioralIndicators = Object.values(biLookup);
+        const groundingScore = groundingResults[0]?.score || 0;
         return Object.values(compLookup).map((comp) => {
-            const biIds = Object.values(biLookup)
-                .filter((bi) => bi.competency_id === comp.id)
-                .map((bi) => bi.id);
-
-            const groundingScore = groundingResults[0]?.score || 0;
-            const examScore =
-                examAttempts.find((a) => a.exam_id === comp.id)?.score || 0;
-
-            const composite =
-                FellowProgressService.calculateCompetencyTotalScore(
-                    biIds,
-                    progress,
-                    portfolios,
-                    groundingScore,
-                    examScore
-                );
-
-            return { comp, avg: composite };
+            const performance = buildCompetencyPerformance(comp, {
+                progress,
+                portfolios,
+                behavioralIndicators,
+                examAttempts,
+                groundingScoreOutOf10: groundingScore,
+                biLookup,
+            });
+            return { comp, avg: performance.compositeScore };
         });
     }, [
         progress,
@@ -1629,70 +1622,25 @@ function PerformanceBreakdownView({
     const groundingScore = groundingResults[0]?.score || 0;
 
     const competencyPerformance = React.useMemo(() => {
+        const behavioralIndicators = Object.values(biLookup);
         return Object.values(compLookup)
             .map((comp) => {
-                const biIds = Object.values(biLookup)
-                    .filter((bi) => bi.competency_id === comp.id)
-                    .map((bi) => bi.id);
-
-                const compExam = examAttempts.find((a) => a.exam_id === comp.id);
-                const examScore = compExam?.score || 0;
-
-                const compositeScore =
-                    FellowProgressService.calculateCompetencyTotalScore(
-                        biIds,
-                        progress,
-                        portfolios,
-                        groundingScore * 10,
-                        examScore
-                    );
-
-                const biBreakdown = biIds.map((biId) => {
-                    const bi = biLookup[biId];
-                    const biProgress = progress.filter(
-                        (p) => p.behavioral_indicator_id === biId
-                    );
-                    const biPortfolios = portfolios.filter(
-                        (p) => p.behavioral_indicator_id === biId
-                    );
-
-                    const believePhase = biProgress.find(
-                        (p) => p.phase_type === "believe"
-                    );
-                    const knowPhase = biProgress.find(
-                        (p) => p.phase_type === "know"
-                    );
-                    const approvedPortfolio = biPortfolios.find(
-                        (p) => p.status === "approved"
-                    );
-
-                    const knowScore = knowPhase?.know_score || 0;
-                    const doScore = approvedPortfolio?.score || 0;
-                    const biScore = FellowProgressService.calculateBIScore(
-                        biProgress,
-                        biPortfolios
-                    );
-
-                    return {
-                        id: biId,
-                        title: bi?.title || biId,
-                        description: bi?.description || "",
-                        believePassed: believePhase?.believe_passed || false,
-                        knowScore,
-                        doScore,
-                        score: biScore,
-                        knowContribution: Math.round((knowScore / 100) * 20),
-                        doContribution: Math.round(doScore),
-                    };
+                const performance = buildCompetencyPerformance(comp, {
+                    progress,
+                    portfolios,
+                    behavioralIndicators,
+                    examAttempts,
+                    groundingScoreOutOf10: groundingScore,
+                    biLookup,
                 });
 
                 return {
                     ...comp,
-                    compositeScore,
-                    examScore,
-                    examContribution: Math.round((examScore / 100) * 20),
-                    groundingContribution: groundingScore,
-                    biBreakdown,
+                    compositeScore: performance.compositeScore,
+                    examScore: performance.examScore,
+                    examContribution: performance.examContribution,
+                    groundingContribution: performance.groundingContribution,
+                    biBreakdown: performance.biBreakdown,
                 };
             })
             .filter((c) => c.biBreakdown.length > 0);

@@ -53,6 +53,7 @@ export interface Exam {
 export interface ExamAttempt {
     id: string;
     exam_id: string;
+    examination_id?: string;
     user_id: string;
     score: number;
     passed: boolean;
