@@ -366,27 +366,39 @@ export default function AdminFellowsTab() {
         setIsExporting(true);
 
         try {
-            const [competencies, behavioralIndicators, fellowReports] = await Promise.all([
-                FellowProgressService.getAllCompetencies(),
-                FellowProgressService.getAllBehavioralIndicators(),
-                Promise.all(
-                    fellows.map(async (fellow) => {
-                        const [progress, portfolios, groundingResults, examAttempts] = await Promise.all([
-                            FellowProgressService.getPhaseProgressByFellow(fellow.user_id),
-                            FellowProgressService.getPortfoliosByFellow(fellow.user_id),
-                            FellowProgressService.getGroundingResultsByFellow(fellow.user_id),
-                            ExamService.getAttemptsByUser(fellow.user_id),
-                        ]);
+            const [competencies, behavioralIndicators, waves, waveCompetencies, fellowReports] =
+                await Promise.all([
+                    FellowProgressService.getAllCompetencies(),
+                    FellowProgressService.getAllBehavioralIndicators(),
+                    FellowProgressService.getAllWaves(),
+                    FellowProgressService.getAllWaveCompetencies(),
+                    Promise.all(
+                        fellows.map(async (fellow) => {
+                            const [progress, portfolios, groundingResults, examAttempts] =
+                                await Promise.all([
+                                    FellowProgressService.getPhaseProgressByFellow(fellow.user_id),
+                                    FellowProgressService.getPortfoliosByFellow(fellow.user_id),
+                                    FellowProgressService.getGroundingResultsByFellow(fellow.user_id),
+                                    ExamService.getAttemptsByUser(fellow.user_id),
+                                ]);
 
-                        return { fellow, progress, portfolios, groundingResults, examAttempts };
-                    })
-                ),
-            ]);
+                            return {
+                                fellow,
+                                progress,
+                                portfolios,
+                                groundingResults,
+                                examAttempts,
+                            };
+                        })
+                    ),
+                ]);
 
             await exportFellowsPerformanceWorkbook({
                 fellowReports,
                 competencies,
                 behavioralIndicators,
+                waves,
+                waveCompetencies,
                 fileName: `admin-fellows-performance-${new Date().toISOString().slice(0, 10)}.xlsx`,
             });
         } catch (error) {

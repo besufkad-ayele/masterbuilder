@@ -193,7 +193,7 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                         <h4 className="text-xs font-black uppercase tracking-widest text-primary">Core Identity</h4>
 
                         <div className="grid gap-2">
-                            <Label>Full Name</Label>
+                            <Label required>Full Name</Label>
                             <Input
                                 value={formData.name}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -202,7 +202,7 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Email Address</Label>
+                            <Label required>Email Address</Label>
                             <Input
                                 type="email"
                                 value={formData.email}
@@ -212,7 +212,7 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Parent Organization (Company)</Label>
+                            <Label required>Parent Organization (Company)</Label>
                             <Select value={formData.companyId} onValueChange={v => setFormData({ ...formData, companyId: v })}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select Parent Organization" />

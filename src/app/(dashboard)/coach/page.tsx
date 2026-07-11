@@ -15,14 +15,9 @@ function CoachDashboardContent() {
 
   useEffect(() => {
     const user = StorageService.getCurrentUser();
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user.role !== "COACH") {
-      router.push("/login");
-      return;
+    const token = StorageService.getAuthToken();
+    if (!user || !token || user.role !== "COACH") {
+      router.replace("/");
     }
   }, [router]);
 

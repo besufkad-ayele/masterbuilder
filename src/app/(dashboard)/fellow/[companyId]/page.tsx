@@ -8,9 +8,9 @@ export default function FellowPage() {
   // Get the current user from storage
   React.useEffect(() => {
     const currentUser = StorageService.getCurrentUser();
-    if (!currentUser || currentUser.role !== 'FELLOW') {
-      // Redirect to login if not a fellow
-      window.location.href = '/login';
+    const token = StorageService.getAuthToken();
+    if (!currentUser || !token || currentUser.role !== 'FELLOW') {
+      window.location.replace('/');
       return;
     }
     setFellowId(currentUser.id);

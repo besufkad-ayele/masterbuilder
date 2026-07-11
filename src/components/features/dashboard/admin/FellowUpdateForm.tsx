@@ -216,7 +216,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         <h4 className="text-xs font-black uppercase tracking-widest text-primary">Core Identity</h4>
 
                         <div className="grid gap-2">
-                            <Label>Full Name</Label>
+                            <Label required>Full Name</Label>
                             <Input
                                 value={formData.name}
                                 onChange={(e) => set("name", e.target.value)}
@@ -245,7 +245,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Parent Organization (Company)</Label>
+                            <Label required>Parent Organization (Company)</Label>
                             <Select
                                 value={formData.companyId}
                                 onValueChange={(v) => set("companyId", v)}
@@ -300,7 +300,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
 
                         {/* Status */}
                         <div className="grid gap-2">
-                            <Label>Member Status</Label>
+                            <Label required>Member Status</Label>
                             <Select
                                 value={formData.status}
                                 onValueChange={(v) => set("status", v)}
@@ -325,7 +325,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         <h4 className="text-xs font-black uppercase tracking-widest text-primary">Professional Background</h4>
 
                         <div className="grid gap-2">
-                            <Label>Highest Educational Qualification</Label>
+                            <Label required>Highest Educational Qualification</Label>
                             <Select
                                 value={formData.highestQualification}
                                 onValueChange={(v) => set("highestQualification", v)}
@@ -345,7 +345,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Current Role</Label>
+                            <Label required>Current Role</Label>
                             <Input
                                 value={formData.currentRole}
                                 onChange={(e) => set("currentRole", e.target.value)}
@@ -355,7 +355,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Years of Experience in Leadership</Label>
+                            <Label required>Years of Experience in Leadership</Label>
                             <Input
                                 type="number"
                                 value={formData.leadershipExperience}
@@ -375,7 +375,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
-                                <Label>Gender</Label>
+                                <Label required>Gender</Label>
                                 <Select
                                     value={formData.gender}
                                     onValueChange={(v) => set("gender", v)}
@@ -403,7 +403,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Primary Language</Label>
+                            <Label required>Primary Language</Label>
                             <Select
                                 value={formData.primaryLanguage}
                                 onValueChange={(v) => set("primaryLanguage", v)}
@@ -423,7 +423,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Availability (Days / Times)</Label>
+                            <Label required>Availability (Days / Times)</Label>
                             <Select
                                 value={formData.availability}
                                 onValueChange={(v) => set("availability", v)}
@@ -448,7 +448,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                         <h4 className="text-xs font-black uppercase tracking-widest text-primary">Leadership Tracking</h4>
 
                         <div className="grid gap-2">
-                            <Label>Leadership Track / Interest Area</Label>
+                            <Label required>Leadership Track / Interest Area</Label>
                             <Select
                                 value={formData.leadershipTrack}
                                 onValueChange={(v) => set("leadershipTrack", v)}

@@ -6,6 +6,7 @@ import FellowTabContent from './FellowTabContent';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, BookOpen, Sparkles } from 'lucide-react';
 import { useFellowDashboard } from '@/hooks/use-dashboard';
+import { FellowDashboardProvider } from '@/context/FellowDashboardContext';
 import { Wave } from '@/types';
 import {
   Sheet,
@@ -24,6 +25,14 @@ interface FellowDashboardLayoutProps {
 }
 
 const FellowDashboardLayout: React.FC<FellowDashboardLayoutProps> = ({ fellowId }) => {
+  return (
+    <FellowDashboardProvider userId={fellowId}>
+      <FellowDashboardShell fellowId={fellowId} />
+    </FellowDashboardProvider>
+  );
+};
+
+const FellowDashboardShell: React.FC<FellowDashboardLayoutProps> = ({ fellowId }) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -34,8 +43,7 @@ const FellowDashboardLayout: React.FC<FellowDashboardLayoutProps> = ({ fellowId 
   const [forcedGatePassedForExamId, setForcedGatePassedForExamId] = React.useState<string | null>(null);
   const [submittedTick, setSubmittedTick] = React.useState(0);
 
-  // The exam tab dispatches this when a submission completes, so the gate re-evaluates
-  // even though this layout uses its own (otherwise stale) dashboard data instance.
+  // Re-evaluate forced exam gate when tab content signals submission (provider also refreshes data).
   React.useEffect(() => {
     const handler = () => setSubmittedTick((t) => t + 1);
     window.addEventListener("exam-submitted", handler);

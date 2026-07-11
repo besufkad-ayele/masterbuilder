@@ -102,7 +102,7 @@ export default function FacilitatorCreationForm({ onFacilitatorCreated }: Facili
 
                 <div className="space-y-4 py-4">
                     <div className="grid gap-2">
-                        <Label>Full Name</Label>
+                        <Label required>Full Name</Label>
                         <Input
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -111,7 +111,7 @@ export default function FacilitatorCreationForm({ onFacilitatorCreated }: Facili
                     </div>
 
                     <div className="grid gap-2">
-                        <Label>Email Address</Label>
+                        <Label required>Email Address</Label>
                         <Input
                             type="email"
                             value={formData.email}

@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import { Portfolio, ReflectionQuestion } from "@/types";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 
 interface PortfolioItem {
     id: string;
@@ -84,7 +85,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             if (!userId || !biId) return;
             setLoadingPortfolios(true);
             try {
-                const allPortfolios = await firebaseService.fellow.getFellowPortfolios(userId);
+                const allPortfolios = await appService.fellow.getFellowPortfolios(userId);
                 // Filter for this specific BI
                 const relevant = allPortfolios.filter(p => p.behavioral_indicator_id === biId);
                 setPortfolios(relevant);
@@ -141,7 +142,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                     updated_at: new Date().toISOString()
                 };
 
-                await firebaseService.fellow.updatePortfolio(editingPortfolioId, portfolioData);
+                await appService.fellow.updatePortfolio(editingPortfolioId, portfolioData);
                 
                 setPortfolios(prev => prev.map(p => 
                     p.id === editingPortfolioId 
@@ -163,7 +164,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                     evidence_urls: currentStar.evidenceUrl ? [currentStar.evidenceUrl] : [],
                 };
 
-                const newId = await firebaseService.fellow.submitPortfolio(portfolioData);
+                const newId = await appService.fellow.submitPortfolio(portfolioData);
                 const newItem: Portfolio = {
                     id: newId,
                     ...portfolioData,
@@ -188,7 +189,6 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
             try {
                 // Assuming we add a delete method or use update status
                 // For now, let's just use local filter and ideally a deleteDoc call
-                // Since updateDoc is available in firebase, I'll use it
                 // Actually, I'll just filter locally for now if delete isn't in fellow service
                 setPortfolios(portfolios.filter((p) => p.id !== id));
                 if (selectedPortfolioId === id) setSelectedPortfolioId(null);
@@ -235,7 +235,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
         try {
             // Update the status of the EXISTING portfolio to 'submitted'
             // This does NOT create a new portfolio, it updates the existing one
-            await firebaseService.fellow.updatePortfolioStatus(selectedPortfolioId, 'submitted');
+            await appService.fellow.updatePortfolioStatus(selectedPortfolioId, 'submitted');
 
             // Update local state to reflect the change
             setPortfolios(prev => prev.map(p =>
@@ -369,6 +369,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                         <div key={key} className="space-y-2">
                                             <label className="text-[10px] uppercase tracking-widest font-bold text-[#C5A059]">
                                                 {key}
+                                                <RequiredMark className="ml-0.5" />
                                             </label>
                                             <textarea
                                                 value={currentStar[key]}
@@ -384,6 +385,7 @@ export const DoPhaseFlow: React.FC<DoPhaseFlowProps> = ({
                                     <div className="space-y-2">
                                         <label className="text-[10px] uppercase tracking-widest font-bold text-[#C5A059] flex items-center gap-2">
                                             Evidence <span className="text-[#1B4332]/40 font-normal normal-case">(Drive URL)</span>
+                                            <RequiredMark className="ml-0.5" />
                                         </label>
                                         <div className="relative">
                                             <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1B4332]/30" />

@@ -1,30 +1,6 @@
-import { db } from '@/lib/firebase';
-import {
-    collection,
-    getDocs,
-    getDoc,
-    doc,
-    setDoc,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy
-} from 'firebase/firestore';
-
-const stripUndefinedDeep = (value: any): any => {
-    if (Array.isArray(value)) {
-        return value.map(stripUndefinedDeep);
-    }
-    if (value && typeof value === 'object') {
-        return Object.fromEntries(
-            Object.entries(value)
-                .filter(([, v]) => v !== undefined)
-                .map(([k, v]) => [k, stripUndefinedDeep(v)])
-        );
-    }
-    return value;
-};
+import { examsApi } from '@/lib/api';
+import { mapExam, mapExamAttempt, mapExamination, mapExaminationAttempt } from '@/lib/api/mappers';
+import { toApiExam, toApiExamAttempt, toApiExamination, toApiExaminationAttempt } from '@/lib/api/examMappers';
 
 export interface ExamQuestion {
     id: string;
@@ -164,8 +140,18 @@ export interface ExaminationAttempt {
     draft_state?: ExaminationAttemptDraftState;
 }
 
-const questionBankId = (cohortId: string, competencyId: string) => `${cohortId}__${competencyId}`;
 const attemptId = (examinationId: string, userId: string) => `${examinationId}__${userId}`;
+
+const parseAttemptDocId = (attemptDocId: string): { examinationId: string; userId: string } => {
+    const sepIndex = attemptDocId.indexOf('__');
+    if (sepIndex === -1) {
+        throw new Error('Invalid examination attempt id');
+    }
+    return {
+        examinationId: attemptDocId.slice(0, sepIndex),
+        userId: attemptDocId.slice(sepIndex + 2),
+    };
+};
 
 /** Compute per-competency + overall scores from snapshots, answers and written scores. */
 export const computeExaminationScores = (
@@ -229,153 +215,131 @@ export const computeExaminationScores = (
 
 export const ExamService = {
     async getExamsByCohortAndCompetency(cohortId: string, competencyId: string): Promise<Exam[]> {
-        const q = query(
-            collection(db, 'exams'),
-            where('cohort_id', '==', cohortId),
-            where('competency_id', '==', competencyId)
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
+        const data = await examsApi.getAll(cohortId, competencyId) as Record<string, unknown>[];
+        return data.map((d) => mapExam(d) as unknown as Exam);
     },
 
     async getExamsByCohort(cohortId: string): Promise<Exam[]> {
-        const q = query(
-            collection(db, 'exams'),
-            where('cohort_id', '==', cohortId)
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
+        const data = await examsApi.getAll(cohortId) as Record<string, unknown>[];
+        return data.map((d) => mapExam(d) as unknown as Exam);
     },
 
     async getExamById(id: string): Promise<Exam | null> {
-        const d = await getDoc(doc(db, 'exams', id));
-        return d.exists() ? { id: d.id, ...d.data() } as Exam : null;
+        try {
+            const data = await examsApi.getById(id) as Record<string, unknown>;
+            return mapExam(data) as unknown as Exam;
+        } catch {
+            return null;
+        }
     },
 
     async createOrUpdateExam(exam: Partial<Exam>): Promise<string> {
-        const examRef = exam.id ? doc(db, 'exams', exam.id) : doc(collection(db, 'exams'));
-        const now = new Date().toISOString();
-        const data = stripUndefinedDeep({
-            ...exam,
-            id: examRef.id,
-            updated_at: now,
-            created_at: exam.created_at || now
-        });
-        await setDoc(examRef, data);
-        return examRef.id;
+        const payload = toApiExam(exam);
+        if (exam.id) {
+            await examsApi.update(exam.id, payload);
+            return exam.id;
+        }
+        const created = await examsApi.create(payload) as Record<string, unknown>;
+        return String(created.id);
     },
 
     async deleteExam(id: string): Promise<void> {
-        await deleteDoc(doc(db, 'exams', id));
+        await examsApi.delete(id);
     },
 
     async submitExamAttempt(attempt: Omit<ExamAttempt, 'id' | 'submitted_at'>): Promise<string> {
-        const attemptRef = doc(collection(db, 'exam_attempts'));
-        const now = new Date().toISOString();
-        await setDoc(attemptRef, {
-            ...attempt,
-            id: attemptRef.id,
-            submitted_at: now
-        });
-        return attemptRef.id;
+        const created = await examsApi.createAttempt({
+            ...toApiExamAttempt(attempt),
+            submittedAt: new Date().toISOString(),
+        }) as Record<string, unknown>;
+        return String(created.id);
     },
 
     async getAttemptsByUser(userId: string): Promise<ExamAttempt[]> {
-        const q = query(collection(db, 'exam_attempts'), where('user_id', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExamAttempt));
+        const data = await examsApi.getAttempts(userId) as Record<string, unknown>[];
+        return data.map((d) => mapExamAttempt(d) as unknown as ExamAttempt);
     },
 
     async updateExamAttempt(attemptId: string, updates: Partial<ExamAttempt>): Promise<void> {
-        const ref = doc(db, 'exam_attempts', attemptId);
-        await updateDoc(ref, {
-            ...updates,
-            updated_at: new Date().toISOString()
-        });
+        await examsApi.updateAttempt(attemptId, toApiExamAttempt(updates));
     },
 
     /* ─── Question banks (per cohort + competency) ────────────────────────── */
 
     async getQuestionBank(cohortId: string, competencyId: string): Promise<CompetencyQuestionBank | null> {
-        const d = await getDoc(doc(db, 'competency_question_banks', questionBankId(cohortId, competencyId)));
-        return d.exists() ? ({ id: d.id, ...d.data() } as CompetencyQuestionBank) : null;
+        const banks = await examsApi.getQuestionBanks(cohortId) as Record<string, unknown>[];
+        const found = banks.find((b) => String(b.competencyId ?? b.competency_id) === competencyId);
+        return found ? ({ id: String(found.id), cohort_id: cohortId, competency_id: competencyId, questions: found.questions as ExamQuestion[], created_at: '', updated_at: '' }) : null;
     },
 
     async getQuestionBanksByCohort(cohortId: string): Promise<CompetencyQuestionBank[]> {
-        const q = query(collection(db, 'competency_question_banks'), where('cohort_id', '==', cohortId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CompetencyQuestionBank));
+        const banks = await examsApi.getQuestionBanks(cohortId) as Record<string, unknown>[];
+        return banks.map((b) => ({
+            id: String(b.id),
+            cohort_id: cohortId,
+            competency_id: String(b.competencyId ?? b.competency_id),
+            questions: (b.questions ?? []) as ExamQuestion[],
+            created_at: String(b.createdAt ?? ''),
+            updated_at: String(b.updatedAt ?? ''),
+        }));
     },
 
     async saveQuestionBank(cohortId: string, competencyId: string, questions: ExamQuestion[]): Promise<void> {
-        const id = questionBankId(cohortId, competencyId);
-        const ref = doc(db, 'competency_question_banks', id);
-        const existing = await getDoc(ref);
-        const now = new Date().toISOString();
-        await setDoc(ref, stripUndefinedDeep({
-            id,
-            cohort_id: cohortId,
-            competency_id: competencyId,
-            questions,
-            created_at: existing.exists() ? (existing.data() as any).created_at || now : now,
-            updated_at: now,
-        }));
+        await examsApi.saveQuestionBank({ cohortId, competencyId, questions });
     },
 
     /* ─── Examinations ────────────────────────────────────────────────────── */
 
     async getExaminationsByCohort(cohortId: string): Promise<Examination[]> {
-        const q = query(collection(db, 'examinations'), where('cohort_id', '==', cohortId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Examination));
+        const data = await examsApi.getExaminations(cohortId) as Record<string, unknown>[];
+        return data.map((d) => mapExamination(d) as unknown as Examination);
     },
 
     async getExaminationById(id: string): Promise<Examination | null> {
-        const d = await getDoc(doc(db, 'examinations', id));
-        return d.exists() ? ({ id: d.id, ...d.data() } as Examination) : null;
+        try {
+            const data = await examsApi.getExamination(id) as Record<string, unknown>;
+            return mapExamination(data) as unknown as Examination;
+        } catch {
+            return null;
+        }
     },
 
     /** Enabled + portal-open examinations that target the given fellow. */
     async getExaminationsForFellow(cohortId: string, userId: string): Promise<Examination[]> {
-        const all = await this.getExaminationsByCohort(cohortId);
-        return all.filter(e => (e.fellow_ids || []).includes(userId));
+        const data = await examsApi.getExaminations(cohortId, userId) as Record<string, unknown>[];
+        return data.map((d) => mapExamination(d) as unknown as Examination);
     },
 
     async createOrUpdateExamination(examination: Partial<Examination>): Promise<string> {
-        const ref = examination.id ? doc(db, 'examinations', examination.id) : doc(collection(db, 'examinations'));
-        const now = new Date().toISOString();
-        await setDoc(ref, stripUndefinedDeep({
-            ...examination,
-            id: ref.id,
-            competency_ids: examination.competency_ids || [],
-            fellow_ids: examination.fellow_ids || [],
-            updated_at: now,
-            created_at: examination.created_at || now,
-        }));
-        return ref.id;
+        const payload = toApiExamination(examination);
+        if (examination.id) {
+            await examsApi.updateExamination(examination.id, payload);
+            return examination.id;
+        }
+        const created = await examsApi.createExamination(payload) as Record<string, unknown>;
+        return String(created.id);
     },
 
     async deleteExamination(id: string): Promise<void> {
-        await deleteDoc(doc(db, 'examinations', id));
+        await examsApi.deleteExamination(id);
     },
 
     /* ─── Examination attempts / drafts ───────────────────────────────────── */
 
     async getExaminationAttempt(examinationId: string, userId: string): Promise<ExaminationAttempt | null> {
-        const d = await getDoc(doc(db, 'examination_attempts', attemptId(examinationId, userId)));
-        return d.exists() ? ({ id: d.id, ...d.data() } as ExaminationAttempt) : null;
+        const attempts = await examsApi.getExaminationAttempts(userId, examinationId) as Record<string, unknown>[];
+        const found = attempts[0];
+        return found ? mapExaminationAttempt(found) as unknown as ExaminationAttempt : null;
     },
 
     async getExaminationAttemptsByUser(userId: string): Promise<ExaminationAttempt[]> {
-        const q = query(collection(db, 'examination_attempts'), where('user_id', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ExaminationAttempt));
+        const data = await examsApi.getExaminationAttempts(userId) as Record<string, unknown>[];
+        return data.map((d) => mapExaminationAttempt(d) as unknown as ExaminationAttempt);
     },
 
     async getExaminationAttemptsByExamination(examinationId: string): Promise<ExaminationAttempt[]> {
-        const q = query(collection(db, 'examination_attempts'), where('examination_id', '==', examinationId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ExaminationAttempt));
+        const data = await examsApi.getExaminationAttempts(undefined, examinationId) as Record<string, unknown>[];
+        return data.map((d) => mapExaminationAttempt(d) as unknown as ExaminationAttempt);
     },
 
     /** Create/replace the live attempt doc when a fellow starts (or retakes) an exam. */
@@ -385,7 +349,6 @@ export const ExamService = {
         snapshots: ExaminationCompetencySnapshot[];
     }): Promise<ExaminationAttempt> {
         const id = attemptId(params.examination.id, params.userId);
-        const ref = doc(db, 'examination_attempts', id);
         const now = new Date().toISOString();
         const attempt: ExaminationAttempt = {
             id,
@@ -409,7 +372,7 @@ export const ExamService = {
                 remaining_seconds: (params.examination.time_allocated_minutes || 60) * 60,
             },
         };
-        await setDoc(ref, stripUndefinedDeep(attempt));
+        await examsApi.upsertExaminationAttempt(toApiExaminationAttempt(attempt));
         return attempt;
     },
 
@@ -419,12 +382,17 @@ export const ExamService = {
         userId: string,
         updates: { answers?: Record<string, string | number>; draft_state?: ExaminationAttemptDraftState }
     ): Promise<void> {
-        const ref = doc(db, 'examination_attempts', attemptId(examinationId, userId));
-        await setDoc(ref, stripUndefinedDeep({
-            ...updates,
-            status: 'draft',
-            updated_at: new Date().toISOString(),
-        }), { merge: true });
+        await examsApi.upsertExaminationAttempt({
+            examinationId,
+            userId,
+            ...toApiExaminationAttempt({
+                examination_id: examinationId,
+                user_id: userId,
+                answers: updates.answers,
+                draft_state: updates.draft_state,
+                status: 'draft',
+            }),
+        });
     },
 
     /** Submit the attempt. Scores are computed for admin review but stay hidden from fellows until approved. */
@@ -435,13 +403,14 @@ export const ExamService = {
     ): Promise<ExaminationAttempt> {
         const id = attemptId(examinationId, userId);
         console.log('[ExamService.submitExaminationAttempt] start', { attemptDocId: id, examinationId, userId });
-        const ref = doc(db, 'examination_attempts', id);
-        const existing = await getDoc(ref);
-        if (!existing.exists()) {
+
+        const attempts = await examsApi.getExaminationAttempts(userId, examinationId) as Record<string, unknown>[];
+        const found = attempts[0];
+        if (!found) {
             console.error('[ExamService.submitExaminationAttempt] No attempt doc found at', id);
             throw new Error('Examination attempt not found');
         }
-        const current = { id: existing.id, ...existing.data() } as ExaminationAttempt;
+        const current = mapExaminationAttempt(found) as unknown as ExaminationAttempt;
 
         const { competency_results, score, passed, has_written } = computeExaminationScores(
             current.competency_snapshots,
@@ -463,11 +432,10 @@ export const ExamService = {
             updated_at: now,
             draft_state: undefined,
         };
-        await setDoc(ref, stripUndefinedDeep({ ...current, ...updated, draft_state: null }), { merge: true });
+
+        await examsApi.upsertExaminationAttempt(toApiExaminationAttempt({ ...current, ...updated }));
         console.log('[ExamService.submitExaminationAttempt] examination_attempts doc written');
 
-        // Mirroring to the legacy `exam_attempts` collection must never block the real
-        // submission (e.g. if security rules differ between the two collections).
         try {
             await this.mirrorToLegacyAttempts({ ...current, ...updated } as ExaminationAttempt, competency_results, status);
             console.log('[ExamService.submitExaminationAttempt] legacy exam_attempts mirrored — done');
@@ -482,10 +450,11 @@ export const ExamService = {
         attemptDocId: string,
         approvedBy: string
     ): Promise<ExaminationAttempt> {
-        const ref = doc(db, 'examination_attempts', attemptDocId);
-        const existing = await getDoc(ref);
-        if (!existing.exists()) throw new Error('Examination attempt not found');
-        const current = { id: existing.id, ...existing.data() } as ExaminationAttempt;
+        const { examinationId, userId } = parseAttemptDocId(attemptDocId);
+        const attempts = await examsApi.getExaminationAttempts(userId, examinationId) as Record<string, unknown>[];
+        const found = attempts[0];
+        if (!found) throw new Error('Examination attempt not found');
+        const current = mapExaminationAttempt(found) as unknown as ExaminationAttempt;
         if (current.status !== 'submitted') {
             throw new Error('Only submitted examinations can be approved');
         }
@@ -501,10 +470,11 @@ export const ExamService = {
         writtenScores: Record<string, number>,
         gradedBy: string
     ): Promise<ExaminationAttempt> {
-        const ref = doc(db, 'examination_attempts', attemptDocId);
-        const existing = await getDoc(ref);
-        if (!existing.exists()) throw new Error('Examination attempt not found');
-        const current = { id: existing.id, ...existing.data() } as ExaminationAttempt;
+        const { examinationId, userId } = parseAttemptDocId(attemptDocId);
+        const attempts = await examsApi.getExaminationAttempts(userId, examinationId) as Record<string, unknown>[];
+        const found = attempts[0];
+        if (!found) throw new Error('Examination attempt not found');
+        const current = mapExaminationAttempt(found) as unknown as ExaminationAttempt;
 
         const mergedWritten = { ...(current.written_scores || {}), ...writtenScores };
         const { competency_results, score, passed, has_written } = computeExaminationScores(
@@ -526,7 +496,8 @@ export const ExamService = {
             graded_by: gradedBy,
             updated_at: now,
         };
-        await setDoc(ref, stripUndefinedDeep({ ...current, ...updated }), { merge: true });
+
+        await examsApi.upsertExaminationAttempt(toApiExaminationAttempt({ ...current, ...updated }));
 
         try {
             await this.mirrorToLegacyAttempts({ ...current, ...updated } as ExaminationAttempt, competency_results, status);
@@ -547,12 +518,10 @@ export const ExamService = {
     ): Promise<void> {
         const now = new Date().toISOString();
         await Promise.all(
-            results.map((r) => {
+            results.map(async (r) => {
                 const legacyId = `${attempt.examination_id}__${r.competency_id}__${attempt.user_id}`;
-                const ref = doc(db, 'exam_attempts', legacyId);
                 const published = status === 'graded';
-                return setDoc(ref, stripUndefinedDeep({
-                    id: legacyId,
+                const payload = toApiExamAttempt({
                     exam_id: r.competency_id,
                     examination_id: attempt.examination_id,
                     user_id: attempt.user_id,
@@ -560,8 +529,12 @@ export const ExamService = {
                     passed: published ? r.score >= 75 : false,
                     status: status === 'draft' ? 'submitted' : status,
                     submitted_at: attempt.submitted_at || now,
-                    updated_at: now,
-                }), { merge: true });
+                });
+                try {
+                    await examsApi.updateAttempt(legacyId, payload);
+                } catch {
+                    await examsApi.createAttempt(payload);
+                }
             })
         );
     }

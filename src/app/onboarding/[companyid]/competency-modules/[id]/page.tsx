@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { CompetencyDetailView } from "@/components/features/competency/CompetencyDetailView";
 import { StorageService } from "@/services/storageService";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 
 export default function CompanyCompetencyDetailPage() {
     const params = useParams();
@@ -17,7 +17,7 @@ export default function CompanyCompetencyDetailPage() {
         if (currentUser) {
             setFellowId(currentUser.id);
             // Initialize competency progress entries if they don't exist
-            firebaseService.fellow.initializeProgress(currentUser.id, 'competency', id);
+            appService.fellow.initializeProgress(currentUser.id, 'competency', id);
         }
     }, [id]);
 

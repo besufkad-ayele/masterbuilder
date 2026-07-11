@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { firebaseService } from '@/services/firebaseService';
+import { appService } from '@/services/appService';
 import { FacilitatorOnboardingView } from '@/components/features/onboarding/facilitator/FacilitatorOnboardingView';
 import { GroundingModuleView } from '@/components/features/grounding/GroundingModuleView';
 import LoadingSpinner from '@/components/ui/loading-spinner';
@@ -23,9 +23,9 @@ export default function FacilitatorOnboardingPage() {
                 const cohortId = params.cohortid as string;
 
                 const [company, cohort, modules] = await Promise.all([
-                    firebaseService.admin.getCompany(companyId),
-                    firebaseService.admin.getCohort(cohortId),
-                    firebaseService.admin.getGroundingModules()
+                    appService.admin.getCompany(companyId),
+                    appService.admin.getCohort(cohortId),
+                    appService.admin.getGroundingModules()
                 ]);
 
                 // Assuming we want the first module if multiple exist, or specific logic

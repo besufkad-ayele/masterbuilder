@@ -70,7 +70,7 @@ const FellowPortfolio: React.FC<FellowPortfolioProps> = ({ fellowId }) => {
 
                         // But wait, the previous code grouped by `comp`.
                         // To replicate this, we need to know which portfolios belong to `comp`.
-                        // We can modify `firebaseService` to hydrate portfolios with competency info, or just show them in a generic list.
+                        // We can modify `appService` to hydrate portfolios with competency info, or just show them in a generic list.
                         // Given constraints, generic list is safer than broken logic.
                         // BUT, to keep UI similar, I will try to match by ID prefix if possible (e.g. BI ID "LY-1.1" -> Comp "LY-1").
 

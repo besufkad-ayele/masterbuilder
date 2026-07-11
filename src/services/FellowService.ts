@@ -1,133 +1,54 @@
-import { db } from '@/lib/firebase';
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-    getDoc,
-    doc,
-    setDoc,
-    updateDoc,
-    serverTimestamp,
-    orderBy,
-    limit
-} from 'firebase/firestore';
-import { FellowProfile, User } from '@/types';
+import { FellowProfile } from '@/types';
+import { fellowsApi } from '@/lib/api';
+import { mapFellow, toApiFellow } from '@/lib/api/mappers';
 
 export const FellowService = {
     /**
      * Fetch all fellow profiles with optional filters
      */
     async getAllFellows(companyId?: string, cohortId?: string): Promise<FellowProfile[]> {
-        const fellowsRef = collection(db, 'fellow_profiles');
-        let q = query(fellowsRef);
-
-        if (companyId && cohortId) {
-            q = query(fellowsRef, where('company_id', '==', companyId), where('cohort_id', '==', cohortId));
-        } else if (companyId) {
-            q = query(fellowsRef, where('company_id', '==', companyId));
-        } else if (cohortId) {
-            q = query(fellowsRef, where('cohort_id', '==', cohortId));
-        }
-
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FellowProfile));
-
-        // Sort client-side to avoid Firestore index requirements
-        return data.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+        const data = await fellowsApi.getAll(companyId, cohortId) as Record<string, unknown>[];
+        return data.map(mapFellow);
     },
 
     /**
      * Get a specific fellow profile by user ID
      */
     async getFellowProfile(userId: string): Promise<FellowProfile | null> {
-        const q = query(collection(db, 'fellow_profiles'), where('user_id', '==', userId));
-        const snapshot = await getDocs(q);
-        return snapshot.empty ? null : { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as FellowProfile;
+        const all = await fellowsApi.getAll() as Record<string, unknown>[];
+        const match = all.find((f) => f.userId === userId || f.user_id === userId);
+        return match ? mapFellow(match) : null;
     },
 
     /**
      * Create a new fellow with Authentication and Profile
      */
     async createFellowWithAuth(email: string, name: string, profileData: Partial<FellowProfile>): Promise<string> {
-        // 1. Create user in Auth + Sync to Firestore 'users' collection
-        const response = await fetch('/api/admin/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                email,
-                name,
-                role: 'FELLOW' as const
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to create user');
-        }
-
-        const { userId } = await response.json();
-
-        // 2. Create the Fellow Profile linked to the new UID
-        return this.createFellowProfile({
+        const fellowId = profileData.fellow_id || await this.generateFellowId(
+            profileData.company_id!,
+            profileData.organization?.substring(0, 3).toUpperCase() || 'FEL',
+        );
+        const created = await fellowsApi.create(toApiFellow({
             ...profileData,
-            user_id: userId,
-            email: email, // Ensure email is in profile too
-        });
-    },
-
-    /**
-     * Create a new fellow profile and register the unique Fellow ID
-     */
-    async createFellowProfile(profileData: Partial<FellowProfile>): Promise<string> {
-        const fellowsRef = collection(db, 'fellow_profiles');
-        const newDocRef = doc(fellowsRef);
-
-        const data = {
-            ...profileData,
-            id: newDocRef.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            status: profileData.status || 'Onboarding'
-        } as FellowProfile;
-
-        await setDoc(newDocRef, data);
-        return newDocRef.id;
+            email,
+            full_name: name,
+            fellow_id: fellowId,
+        })) as Record<string, unknown>;
+        return String(created.id);
     },
 
     /**
      * Generate a unique fellow ID based on company prefix and current count
      */
     async generateFellowId(companyId: string, companyPrefix: string): Promise<string> {
-        const q = query(collection(db, 'fellow_profiles'), where('company_id', '==', companyId));
-        const snapshot = await getDocs(q);
-        const count = snapshot.size;
-        return `${companyPrefix}-F${String(count + 1).padStart(4, '0')}`;
+        return fellowsApi.generateId(companyId, companyPrefix);
     },
 
     /**
      * Update fellow profile details
      */
     async updateFellowProfile(id: string, userId: string, updates: Partial<FellowProfile>): Promise<void> {
-        // 1. If name or email changed, update Auth
-        if (updates.full_name || updates.email) {
-            await fetch('/api/admin/users', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId,
-                    name: updates.full_name,
-                    email: updates.email
-                })
-            });
-        }
-
-        // 2. Update Firestore profile
-        const fellowRef = doc(db, 'fellow_profiles', id);
-        await updateDoc(fellowRef, {
-            ...updates,
-            updated_at: new Date().toISOString()
-        });
+        await fellowsApi.update(id, toApiFellow(updates));
     },
 
     /**
@@ -141,22 +62,7 @@ export const FellowService = {
      * Delete a fellow profile and its associated authentication account
      */
     async deleteFellow(profileId: string, userId: string): Promise<void> {
-        // 1. Delete from Auth and Users collection via API
-        const response = await fetch('/api/admin/users', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to delete authentication account');
-        }
-
-        // 2. Delete the profile document
-        const fellowRef = doc(db, 'fellow_profiles', profileId);
-        const { deleteDoc } = await import('firebase/firestore');
-        await deleteDoc(fellowRef);
+        await fellowsApi.delete(profileId);
     },
 
     /**
@@ -164,20 +70,9 @@ export const FellowService = {
      */
     async getFellowsByIds(userIds: string[]): Promise<FellowProfile[]> {
         if (!userIds || userIds.length === 0) return [];
-
-        // Firestore 'in' query has a limit of 10 values
-        const fellowsRef = collection(db, 'fellow_profiles');
-        const chunks = [];
-        for (let i = 0; i < userIds.length; i += 10) {
-            chunks.push(userIds.slice(i, i + 10));
-        }
-
-        const results: FellowProfile[] = [];
-        for (const chunk of chunks) {
-            const q = query(fellowsRef, where('user_id', 'in', chunk));
-            const snapshot = await getDocs(q);
-            results.push(...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FellowProfile)));
-        }
-        return results;
+        const all = await fellowsApi.getAll() as Record<string, unknown>[];
+        return all
+            .filter((f) => userIds.includes(String(f.userId ?? f.user_id)))
+            .map(mapFellow);
     }
 };

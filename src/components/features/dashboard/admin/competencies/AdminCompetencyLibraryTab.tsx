@@ -39,6 +39,7 @@ import {
 } from "@/types";
 import { competencyService } from "@/services/competencyService";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import { COMPETENCY_DOMAINS } from "@/constants/competency";
 
 interface AdminCompetencyLibraryTabProps {
@@ -286,16 +287,16 @@ export default function AdminCompetencyLibraryTab({ data, dictionary, companies,
             </div>
 
             <Dialog open={isCreateOpen || isEditOpen} onOpenChange={(open) => { if (!open) { setIsCreateOpen(false); setIsEditOpen(false); } }}>
-                <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] overflow-y-auto rounded-3xl p-8 bg-white border-0 shadow-2xl">
+                <DialogContent className="max-w-[calc(100vw-1rem)] w-full sm:max-w-[95vw] sm:w-[1200px] max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-3xl p-4 sm:p-8 bg-white border-0 shadow-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-3xl font-serif text-[#1B4332]">{isCreateOpen ? "Create Learning Module" : "Edit Learning Module"}</DialogTitle>
+                        <DialogTitle className="text-2xl sm:text-3xl font-serif text-[#1B4332]">{isCreateOpen ? "Create Learning Module" : "Edit Learning Module"}</DialogTitle>
                         <DialogDescription className="text-muted-foreground">Attach rich learning resources and phase-level quizzes to behavioral indicators.</DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-8 py-6">
                         <section className="bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-3">
-                                <label className="text-xs font-black text-[#C5A059] uppercase tracking-widest pl-1">Assign to Company</label>
+                                <label className="text-xs font-black text-[#C5A059] uppercase tracking-widest pl-1">Assign to Company<RequiredMark className="ml-0.5" /></label>
                                 <select
                                     className="w-full h-12 rounded-2xl bg-white border-2 border-border/50 focus:border-primary px-4 font-bold text-sm outline-none transition-all"
                                     value={formState.company_id}
@@ -329,6 +330,7 @@ export default function AdminCompetencyLibraryTab({ data, dictionary, companies,
                             <div className="flex items-center justify-between mb-4">
                                 <label className="text-xs font-bold text-[#C5A059] uppercase tracking-widest">
                                     1. Connect to Dictionary
+                                    <RequiredMark className="ml-0.5" />
                                 </label>
                                 {editingItem && isDictionaryLinked && (
                                     <span className="text-[10px] font-black text-primary flex items-center gap-1.5 bg-primary/10 px-3 py-1 rounded-full">
@@ -336,7 +338,7 @@ export default function AdminCompetencyLibraryTab({ data, dictionary, companies,
                                     </span>
                                 )}
                             </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                                 {dictionary.map(dictItem => (
                                     <div
                                         key={dictItem.id}

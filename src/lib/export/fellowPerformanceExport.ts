@@ -7,6 +7,8 @@ import type {
     GroundingResult,
     PhaseProgress,
     Portfolio,
+    Wave,
+    WaveCompetency,
 } from "@/types";
 import { createBarChartImage, createDoughnutChartImage } from "./chartImage";
 
@@ -112,15 +114,20 @@ function buildFellowAverageTotals(
 function buildDashboardSections({
     fellowCount,
     reports,
+    scopeLabel,
 }: {
     fellowCount: number;
     reports: CompetencyExportReport[];
+    scopeLabel?: string;
 }): DashboardSection[] {
     const allRows = reports.flatMap((report) => report.rows);
     const believePassCount = allRows.filter((row) => row.Believe === "Pass").length;
     const believePassRate =
         allRows.length > 0 ? Math.round((believePassCount / allRows.length) * 100) : 0;
     const avgTotal = average(allRows.map((row) => row["Total (100%)"]));
+    const scopeNote = scopeLabel
+        ? ` Scoped to ${scopeLabel}.`
+        : " Across all competencies in this export.";
 
     const componentAverages = {
         grounding: average(allRows.map((row) => row["Grounding (10%)"])),
@@ -155,7 +162,7 @@ function buildDashboardSections({
     return [
         {
             title: "Program Snapshot",
-            note: "Overview of cohort size and headline performance indicators across all fellow-competency records.",
+            note: `Overview of cohort size and headline performance indicators across fellow-competency records.${scopeNote}`,
             headers: ["Metric", "Value"],
             rows: [
                 ["Total Fellows", fellowCount],
@@ -197,7 +204,7 @@ function buildDashboardSections({
         },
         {
             title: "Competency Performance Overview",
-            note: "Compares average total score for each competency across all fellows in the cohort.",
+            note: `Compares average total score for each competency${scopeLabel ? ` in ${scopeLabel}` : " across all fellows in the cohort"}.`,
             headers: ["Competency", "Avg Total", "Believe Pass %"],
             rows: reports.map((report) => {
                 const competencyRows = report.rows;
@@ -248,7 +255,7 @@ function buildDashboardSections({
         },
         {
             title: "Top Fellows by Average Total Score",
-            note: "Horizontal bar chart ranking the top 10 fellows based on their average total score across all competency sheets.",
+            note: "Horizontal bar chart ranking the top 10 fellows based on their average total score across competency sheets in this dashboard.",
             headers: ["Rank", "Fellow ID", "Full Name", "Average Total"],
             rows: topFellows.map((entry, index) => [
                 index + 1,
@@ -340,9 +347,15 @@ async function addChartToSheet(
 async function buildDashboardSheet(
     workbook: ExcelJS.Workbook,
     exportDate: string,
-    sections: DashboardSection[]
+    sections: DashboardSection[],
+    options?: {
+        sheetName?: string;
+        title?: string;
+        subtitle?: string;
+    }
 ) {
-    const sheet = workbook.addWorksheet("Dashboard", {
+    const sheetName = sanitizeSheetName(options?.sheetName || "Dashboard");
+    const sheet = workbook.addWorksheet(sheetName, {
         views: [{ showGridLines: false }],
     });
 
@@ -359,10 +372,18 @@ async function buildDashboardSheet(
 
     sheet.mergeCells(currentRow, 1, currentRow, 6);
     const titleCell = sheet.getCell(currentRow, 1);
-    titleCell.value = "Fellowship Performance Dashboard";
+    titleCell.value = options?.title || "Fellowship Performance Dashboard";
     titleCell.font = { bold: true, size: 18, color: { argb: BRAND_GREEN } };
     titleCell.alignment = { vertical: "middle" };
     currentRow += 1;
+
+    if (options?.subtitle) {
+        sheet.mergeCells(currentRow, 1, currentRow, 6);
+        const subtitleCell = sheet.getCell(currentRow, 1);
+        subtitleCell.value = options.subtitle;
+        subtitleCell.font = { size: 11, color: { argb: BRAND_GREEN } };
+        currentRow += 1;
+    }
 
     sheet.mergeCells(currentRow, 1, currentRow, 6);
     const dateCell = sheet.getCell(currentRow, 1);
@@ -528,8 +549,45 @@ export function sanitizeSheetName(name: string): string {
     return name.replace(/[\[\]\*\/\\\?:]/g, "").slice(0, 31) || "Competency";
 }
 
-function addCompetencySheet(workbook: ExcelJS.Workbook, report: CompetencyExportReport) {
-    const sheet = workbook.addWorksheet(sanitizeSheetName(report.competency.title));
+function uniqueSheetName(desired: string, used: Set<string>): string {
+    let name = sanitizeSheetName(desired);
+    if (!used.has(name.toLowerCase())) {
+        used.add(name.toLowerCase());
+        return name;
+    }
+
+    let index = 2;
+    while (index < 100) {
+        const suffix = ` ${index}`;
+        const candidate = sanitizeSheetName(
+            `${desired.slice(0, Math.max(1, 31 - suffix.length))}${suffix}`
+        );
+        if (!used.has(candidate.toLowerCase())) {
+            used.add(candidate.toLowerCase());
+            return candidate;
+        }
+        index += 1;
+    }
+
+    const fallback = sanitizeSheetName(`${desired.slice(0, 24)} ${Date.now() % 1000}`);
+    used.add(fallback.toLowerCase());
+    return fallback;
+}
+
+function waveDisplayLabel(wave: Wave): string {
+    const name = wave.name?.trim();
+    if (name) return `Wave ${wave.number}: ${name}`;
+    return `Wave ${wave.number}`;
+}
+
+function addCompetencySheet(
+    workbook: ExcelJS.Workbook,
+    report: CompetencyExportReport,
+    usedSheetNames: Set<string>
+) {
+    const sheet = workbook.addWorksheet(
+        uniqueSheetName(report.competency.title, usedSheetNames)
+    );
 
     sheet.columns = EXPORT_COLUMNS.map((column) => ({
         header: column,
@@ -567,11 +625,15 @@ export async function exportFellowsPerformanceWorkbook({
     fellowReports,
     competencies,
     behavioralIndicators,
+    waves = [],
+    waveCompetencies = [],
     fileName,
 }: {
     fellowReports: FellowReportData[];
     competencies: Competency[];
     behavioralIndicators: BehavioralIndicator[];
+    waves?: Wave[];
+    waveCompetencies?: WaveCompetency[];
     fileName: string;
 }): Promise<void> {
     const reports = buildCompetencyExportReports({
@@ -584,18 +646,52 @@ export async function exportFellowsPerformanceWorkbook({
     workbook.creator = "Masterbuilder Admin";
     workbook.created = new Date();
 
-    const sections = buildDashboardSections({
-        fellowCount: fellowReports.length,
+    const usedSheetNames = new Set<string>();
+    const exportDate = new Date().toLocaleString();
+    const fellowCount = fellowReports.length;
+
+    // Overall dashboard (all competencies)
+    const overallSections = buildDashboardSections({
+        fellowCount,
         reports,
+        scopeLabel: undefined,
+    });
+    await buildDashboardSheet(workbook, exportDate, overallSections, {
+        sheetName: uniqueSheetName("Dashboard", usedSheetNames),
+        title: "Fellowship Performance Dashboard",
+        subtitle: "Overall — all competencies",
     });
 
-    await buildDashboardSheet(workbook, new Date().toLocaleString(), sections);
+    // One dashboard sheet per wave
+    const sortedWaves = [...waves].sort((a, b) => a.number - b.number || a.id.localeCompare(b.id));
+    for (const wave of sortedWaves) {
+        const competencyIds = new Set(
+            waveCompetencies
+                .filter((link) => link.wave_id === wave.id)
+                .map((link) => link.competency_id)
+        );
+        const waveReports = reports.filter((report) => competencyIds.has(report.competency.id));
+        if (waveReports.length === 0) continue;
+
+        const label = waveDisplayLabel(wave);
+        const sections = buildDashboardSections({
+            fellowCount,
+            reports: waveReports,
+            scopeLabel: label,
+        });
+
+        await buildDashboardSheet(workbook, exportDate, sections, {
+            sheetName: uniqueSheetName(`${label} Dash`, usedSheetNames),
+            title: "Fellowship Performance Dashboard",
+            subtitle: label,
+        });
+    }
 
     reports.forEach((report) => {
-        addCompetencySheet(workbook, report);
+        addCompetencySheet(workbook, report, usedSheetNames);
     });
 
-    if (reports.length === 0) {
+    if (reports.length === 0 && workbook.worksheets.length === 0) {
         workbook.addWorksheet("Report");
     }
 

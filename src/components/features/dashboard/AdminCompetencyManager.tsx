@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Plus, Book, Library, Loader2 } from "lucide-react";
 import { competencyService } from "@/services/competencyService";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import { CompetencyDictionary, CompetencyLibrary, Company } from "@/types";
 import AdminCompetencyDictionaryTab from "./admin/competencies/AdminCompetencyDictionaryTab";
 import AdminCompetencyLibraryTab from "./admin/competencies/AdminCompetencyLibraryTab";
@@ -25,7 +25,7 @@ export default function AdminCompetencyManager() {
             const [dictData, libData, companyData] = await Promise.all([
                 competencyService.getDictionary(),
                 competencyService.getLibrary(),
-                firebaseService.admin.getCompanies()
+                appService.admin.getCompanies()
             ]);
             setDictionary(dictData);
             setLibrary(libData);

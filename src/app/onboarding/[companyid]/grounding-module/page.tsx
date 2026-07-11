@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import { groundingService } from "@/services/groundingService";
 import { StorageService } from "@/services/storageService";
 import { GroundingModule } from "@/types";
@@ -30,7 +30,7 @@ export default function CompanyGroundingModulePage() {
 
                 // Initialize progress if we have a fellow and a module
                 if (currentUser && gmds.length > 0) {
-                    await firebaseService.fellow.initializeProgress(currentUser.id, 'grounding', gmds[0].id);
+                    await appService.fellow.initializeProgress(currentUser.id, 'grounding', gmds[0].id);
                 }
             } catch (error) {
                 console.error("Failed to fetch grounding module", error);

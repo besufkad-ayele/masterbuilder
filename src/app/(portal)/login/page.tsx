@@ -7,13 +7,10 @@ import { ArrowLeft, Sparkles, Users, Briefcase, ChevronRight, GraduationCap, Eye
 import { Manrope } from "next/font/google";
 
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import BrandLogo from "@/components/features/shared/BrandLogo";
 import CoachLoginForm from "@/components/features/auth/CoachLoginForm";
-import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { StorageService } from "@/services/storageService";
-import { User, FellowProfile, FacilitatorProfile } from "@/types";
+import { loginWithApi, routeAfterApiLogin } from "@/lib/auth/api-login";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -52,83 +49,19 @@ export default function LoginPage() {
         return;
       }
 
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), loginPassword);
-      const user = userCredential.user;
-
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-
-      if (!userDoc.exists()) {
-        setError("Account not found in our directory.");
-        setLoading(false);
+      const result = await loginWithApi(
+        email.trim(),
+        loginPassword,
+        selectedRole || undefined,
+      );
+      if (!result.ok) {
+        setError(result.message);
         return;
       }
-
-      const profile = userDoc.data() as User;
-
-      if (selectedRole && profile.role !== selectedRole && profile.role !== 'ADMIN') {
-        setError(`This account is not authorized for the ${selectedRole.toLowerCase()} portal.`);
-        setLoading(false);
-        return;
-      }
-
-      StorageService.setCurrentUser(profile);
-
-      if (profile.role === "ADMIN") {
-        const q = query(collection(db, 'admin_profiles'), where('user_id', '==', user.uid));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const adminProfile = snapshot.docs[0].data();
-          profile.title = adminProfile.title;
-          StorageService.setCurrentUser(profile);
-        }
-        router.push("/admin");
-        return;
-      }
-
-      if (profile.role === "FACILITATOR") {
-        const q = query(collection(db, 'facilitator_profiles'), where('user_id', '==', user.uid));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const facilitatorProfile = snapshot.docs[0].data() as FacilitatorProfile;
-          if (facilitatorProfile.company_ids && facilitatorProfile.company_ids.length > 0) {
-            router.push(`/facilitator/${facilitatorProfile.company_ids[0]}`);
-          } else {
-            router.push('/admin');
-          }
-        } else {
-          setError("Facilitator profile not found.");
-        }
-        return;
-      }
-
-      if (profile.role === "FELLOW") {
-        const q = query(collection(db, 'fellow_profiles'), where('user_id', '==', user.uid));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          const fellowProfile = snapshot.docs[0].data() as FellowProfile;
-          if (fellowProfile.company_id) {
-            router.push(`/fellow/${fellowProfile.company_id}`);
-          } else {
-            setError("Fellow profile is missing company assignment.");
-          }
-        } else {
-          setError("Fellow profile not found.");
-        }
-        return;
-      }
-
-      setError("Invalid user role assigned.");
-    } catch (err: any) {
+      routeAfterApiLogin(router, result.rawUser);
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      if (
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password" ||
-        err.code === "auth/invalid-credential"
-      ) {
-        setError("Invalid email address. Please try your official email.");
-      } else {
-        setError("An error occurred during sign in. Please try again.");
-      }
+      setError("An error occurred during sign in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -174,16 +107,16 @@ export default function LoginPage() {
               <p className="text-[#1B4332]/60 mt-2 text-sm">Select your role to continue to your workspace</p>
             </div>
 
-            {/* ── Two fancy cards side by side ── */}
-            <div className="grid grid-cols-2 gap-5">
+            {/* Role cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
 
               {/* ── Fellow Card ── */}
               <button
                 onClick={() => handleRoleSelect('FELLOW')}
-                className="group relative overflow-hidden flex flex-col text-left rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(27,67,50,0.14)] hover:border-[#1B4332]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="group relative overflow-hidden flex flex-col text-left rounded-[1.5rem] sm:rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(27,67,50,0.14)] hover:border-[#1B4332]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {/* Gradient header */}
-                <div className="relative h-48 w-full bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#52B788] overflow-hidden flex items-center justify-center">
+                <div className="relative h-36 sm:h-48 w-full bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#52B788] overflow-hidden flex items-center justify-center">
                   {/* Decorative elements */}
                   <div className="absolute -top-10 -right-10 size-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
                   <div className="absolute -bottom-4 -left-4 size-28 rounded-full bg-[#95D5B2]/25 blur-xl pointer-events-none" />
@@ -207,7 +140,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Body */}
-                <div className="p-7 flex flex-col flex-1">
+                <div className="p-5 sm:p-7 flex flex-col flex-1">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-[#1B4332] leading-tight">I&apos;m a Fellow</h3>
                     <p className="text-sm text-[#1B4332]/55 mt-2 leading-relaxed font-medium">
@@ -233,10 +166,10 @@ export default function LoginPage() {
               {/* ── Facilitator Card ── */}
               <button
                 onClick={() => handleRoleSelect('FACILITATOR')}
-                className="group relative overflow-hidden flex flex-col text-left rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(180,100,0,0.14)] hover:border-amber-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                className="group relative overflow-hidden flex flex-col text-left rounded-[1.5rem] sm:rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(180,100,0,0.14)] hover:border-amber-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
               >
                 {/* Gradient header */}
-                <div className="relative h-48 w-full bg-gradient-to-br from-[#78350F] via-[#B45309] to-[#F59E0B] overflow-hidden flex items-center justify-center">
+                <div className="relative h-36 sm:h-48 w-full bg-gradient-to-br from-[#78350F] via-[#B45309] to-[#F59E0B] overflow-hidden flex items-center justify-center">
                   {/* Decorative elements */}
                   <div className="absolute -top-10 -right-10 size-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
                   <div className="absolute -bottom-4 -left-4 size-28 rounded-full bg-yellow-200/25 blur-xl pointer-events-none" />
@@ -260,7 +193,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Body */}
-                <div className="p-7 flex flex-col flex-1">
+                <div className="p-5 sm:p-7 flex flex-col flex-1">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-amber-900 leading-tight">I&apos;m a Facilitator</h3>
                     <p className="text-sm text-amber-900/55 mt-2 leading-relaxed font-medium">
@@ -286,10 +219,10 @@ export default function LoginPage() {
               {/* ── Coach Card ── */}
               <button
                 onClick={() => handleRoleSelect('COACH')}
-                className="group relative overflow-hidden flex flex-col text-left rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(29,78,216,0.14)] hover:border-blue-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 md:col-span-2 lg:col-span-1"
+                className="group relative overflow-hidden flex flex-col text-left rounded-[1.5rem] sm:rounded-[2rem] border border-[#E8E4D8] bg-white transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_32px_64px_rgba(29,78,216,0.14)] hover:border-blue-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:col-span-2"
               >
                 {/* Gradient header */}
-                <div className="relative h-48 w-full bg-gradient-to-br from-[#1E3A8A] via-[#1D4ED8] to-[#3B82F6] overflow-hidden flex items-center justify-center">
+                <div className="relative h-36 sm:h-48 w-full bg-gradient-to-br from-[#1E3A8A] via-[#1D4ED8] to-[#3B82F6] overflow-hidden flex items-center justify-center">
                   {/* Decorative elements */}
                   <div className="absolute -top-10 -right-10 size-36 rounded-full bg-white/10 blur-2xl pointer-events-none" />
                   <div className="absolute -bottom-4 -left-4 size-28 rounded-full bg-blue-200/25 blur-xl pointer-events-none" />
@@ -313,7 +246,7 @@ export default function LoginPage() {
                 </div>
 
                 {/* Body */}
-                <div className="p-7 flex flex-col flex-1">
+                <div className="p-5 sm:p-7 flex flex-col flex-1">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-blue-900 leading-tight">I&apos;m a Coach</h3>
                     <p className="text-sm text-blue-900/55 mt-2 leading-relaxed font-medium">
@@ -382,6 +315,7 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest pl-1" htmlFor="email">
                     Email Address
+                    <RequiredMark className="ml-0.5" />
                   </label>
                   <input
                     className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-primary focus:ring-4 focus:ring-primary/5 h-16 placeholder:text-slate-300 px-6 text-base transition-all outline-none"
@@ -403,6 +337,7 @@ export default function LoginPage() {
                     <div className="flex items-center justify-between pl-1">
                       <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest" htmlFor="password">
                         Password
+                        <RequiredMark className="ml-0.5" />
                       </label>
                     </div>
                     <div className="relative group/pass">

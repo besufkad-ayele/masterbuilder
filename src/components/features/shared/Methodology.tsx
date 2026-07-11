@@ -27,21 +27,21 @@ const Methodology = () => {
   ];
 
   return (
-    <section className="py-32 bg-slate-50 dark:bg-slate-900/50">
-      <div className="max-w-7xl mx-auto px-6 text-center mb-20">
+    <section className="py-16 sm:py-24 lg:py-32 bg-slate-50 dark:bg-slate-900/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center mb-12 sm:mb-20">
         <span className="text-accent text-xs font-bold tracking-widest uppercase mb-4 block">The Methodology</span>
-        <h2 className="text-5xl font-display mb-6 dark:text-white">The Leadership Cycle</h2>
+        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display mb-6 dark:text-white">The Leadership Cycle</h2>
         <p className="max-w-2xl mx-auto text-slate-600 dark:text-slate-400">
           Our proven framework ensures you don't just "learn" a skill—you internalize it through iterative cycles of belief, high-fidelity simulation, and evidence creation.
         </p>
       </div>
-      <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 grid md:grid-cols-3 gap-6 sm:gap-8">
         {cards.map((card, index) => {
           const Icon = card.icon;
           return (
             <div 
               key={card.title}
-              className={`bg-white dark:bg-slate-800 p-10 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all duration-300 cursor-pointer ${
+              className={`bg-white dark:bg-slate-800 p-6 sm:p-10 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all duration-300 cursor-pointer ${
                 hoveredCard === index 
                   ? 'shadow-2xl -translate-y-4 scale-105 border-accent/20' 
                   : 'hover:shadow-xl hover:-translate-y-2'

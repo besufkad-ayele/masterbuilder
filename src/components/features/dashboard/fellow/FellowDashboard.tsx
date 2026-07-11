@@ -176,7 +176,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       {/* ─── Hero Header Area ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-3 h-full">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-[#1B4332] p-10 text-white shadow-2xl h-full flex flex-col justify-between group">
+          <div className="relative overflow-hidden rounded-2xl sm:rounded-[2.5rem] bg-[#1B4332] p-6 sm:p-10 text-white shadow-2xl h-full flex flex-col justify-between group">
             {/* Decorative Elements */}
             <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-[#2D6A4F] to-transparent rounded-full -mr-32 -mt-32 blur-3xl opacity-50 transition-transform duration-1000 group-hover:scale-110 pointer-events-none" />
             <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-[#B8860B]/10 rounded-full blur-3xl pointer-events-none" />
@@ -194,7 +194,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
                 </div>
               </div>
 
-              <h1 className="text-5xl font-display font-medium mb-4 leading-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-display font-medium mb-4 leading-tight">
                 Welcome back,<br />
                 <span className="italic font-serif text-[#C5A059] drop-shadow-sm">
                   {fellowState.user?.name?.split(' ')[0] || fellowState.profile?.full_name?.split(' ')[0] || 'Fellow'}
@@ -240,7 +240,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
           <div>
             <span className="text-[10px] font-bold text-[#1B4332]/40 uppercase tracking-[0.2em]">Overall Progress</span>
             <div className="mt-4 flex items-baseline gap-1">
-              <span className="text-6xl font-serif font-bold text-[#1B4332]">{overallProgress}</span>
+              <span className="text-4xl sm:text-6xl font-serif font-bold text-[#1B4332]">{overallProgress}</span>
               <span className="text-2xl font-serif text-[#1B4332]/40">%</span>
             </div>
           </div>
@@ -297,7 +297,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
                   )}
                   onClick={() => !isWaveLocked && router.push('/fellow?tab=learning')}
                 >
-                  <CardContent className="p-10 flex gap-8 items-center">
+                  <CardContent className="p-5 sm:p-10 flex flex-col sm:flex-row gap-4 sm:gap-8 items-start sm:items-center">
                     <div className={cn(
                       "size-16 rounded-2xl flex items-center justify-center transition-colors",
                       isWaveLocked ? "bg-stone-100 text-stone-400" : "bg-[#1B4332]/5 text-[#1B4332]"
@@ -347,7 +347,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
           </div>
 
           <div className="space-y-10">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-6 rounded-3xl border-[#E8E4D8]">
                 <Award className="size-5 text-[#C5A059] mb-4" />
                 <div className="text-2xl font-bold">{fellowState.portfolios?.length || 0}</div>
@@ -407,7 +407,7 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
             <Target size={80} />
           </div>
           <p className="text-[10px] font-black uppercase tracking-widest text-[#C5A059] mb-4">Performance Weights</p>
-          <div className="grid grid-cols-2 gap-y-4 gap-x-6 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 mt-2">
             <div>
               <p className="text-[8px] font-black text-[#1B4332]/40 uppercase mb-1">Know (Quiz)</p>
               <p className="text-xl font-serif font-bold text-[#1B4332]">20%</p>
@@ -509,7 +509,7 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
           {selectedComp ? (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Competency Hero Header */}
-              <div className="bg-[#1B4332] rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
+              <div className="bg-[#1B4332] rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 text-white relative overflow-hidden shadow-2xl">
                 <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none -mr-16 -mt-16">
                   <Star size={240} />
                 </div>
@@ -532,7 +532,7 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
 
                   <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 text-center min-w-[140px]">
                     <p className="text-[10px] font-black tracking-widest text-[#C5A059] uppercase mb-1">Composite Result</p>
-                    <div className="text-6xl font-serif font-bold text-white mb-2">{selectedComp.progressPercent}%</div>
+                    <div className="text-4xl sm:text-6xl font-serif font-bold text-white mb-2">{selectedComp.progressPercent}%</div>
                     {selectedComp.progressPercent >= 75 ? (
                       <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-bold text-[10px] uppercase">
                         <CheckCircle className="size-3" />

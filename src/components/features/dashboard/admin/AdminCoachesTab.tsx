@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import UserProfileDetail from "./UserProfileDetail";
 import CoachCreationForm from "./CoachCreationForm";
 import { CoachProfile } from "@/types";
+import { RequiredMark } from "@/components/ui/label";
 
 function CoachActions({ coach, onUpdate, onView }: { coach: any, onUpdate?: () => void, onView: () => void }) {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -155,7 +156,7 @@ function CoachActions({ coach, onUpdate, onView }: { coach: any, onUpdate?: () =
                     </DialogHeader>
                     <div className="grid gap-6 py-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-black uppercase tracking-widest text-amber-600 px-1">New Password</label>
+                            <label className="text-sm font-black uppercase tracking-widest text-amber-600 px-1">New Password<RequiredMark className="ml-0.5" /></label>
                             <Input
                                 type="text"
                                 value={newPassword}
@@ -187,7 +188,7 @@ function CoachActions({ coach, onUpdate, onView }: { coach: any, onUpdate?: () =
                     </DialogHeader>
                     <div className="grid gap-6 py-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-black uppercase tracking-widest text-primary px-1">Full Name</label>
+                            <label className="text-sm font-black uppercase tracking-widest text-primary px-1">Full Name<RequiredMark className="ml-0.5" /></label>
                             <Input
                                 value={updatedData.full_name}
                                 onChange={e => setUpdatedData({ ...updatedData, full_name: e.target.value })}
@@ -195,7 +196,7 @@ function CoachActions({ coach, onUpdate, onView }: { coach: any, onUpdate?: () =
                             />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-black uppercase tracking-widest text-primary px-1">Email Address</label>
+                            <label className="text-sm font-black uppercase tracking-widest text-primary px-1">Email Address<RequiredMark className="ml-0.5" /></label>
                             <Input
                                 value={updatedData.email}
                                 onChange={e => setUpdatedData({ ...updatedData, email: e.target.value })}
@@ -371,15 +372,16 @@ export default function AdminCoachesTab() {
                 </div>
             </div>
 
-            <Card className="rounded-[3rem] border-2 border-[#E8E4D8] overflow-hidden shadow-2xl bg-white">
+            <Card className="rounded-2xl sm:rounded-[3rem] border-2 border-[#E8E4D8] overflow-hidden shadow-2xl bg-white">
                 <CardContent className="p-0">
-                    <Table>
+                    <div className="overflow-x-auto">
+                    <Table className="min-w-[640px]">
                         <TableHeader className="bg-muted/30">
                             <TableRow className="hover:bg-transparent border-b-2 border-[#E8E4D8]/50">
-                                <TableHead className="font-serif font-black px-10 h-20 text-lg">Coach Details</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-lg">Specialization</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-center text-lg">Status</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-right px-10 text-lg">Actions</TableHead>
+                                <TableHead className="font-serif font-black px-4 sm:px-10 h-14 sm:h-20 text-sm sm:text-lg">Coach Details</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-sm sm:text-lg">Specialization</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-center text-sm sm:text-lg">Status</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-right px-4 sm:px-10 text-sm sm:text-lg">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -448,6 +450,7 @@ export default function AdminCoachesTab() {
                             ))}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

@@ -14,6 +14,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { AdminManagementService } from "@/services/AdminManagementService";
+import { RequiredMark } from "@/components/ui/label";
 
 interface AdminCreationFormProps {
     onAdminCreated: () => void;
@@ -90,7 +91,7 @@ export default function AdminCreationForm({ onAdminCreated }: AdminCreationFormP
                         )}
 
                         <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60 px-1">Full Name</label>
+                            <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60 px-1">Full Name<RequiredMark className="ml-0.5" /></label>
                             <Input
                                 placeholder="e.g. Abebe Bikila"
                                 value={formData.name}
@@ -101,7 +102,7 @@ export default function AdminCreationForm({ onAdminCreated }: AdminCreationFormP
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60 px-1">Email Address</label>
+                            <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60 px-1">Email Address<RequiredMark className="ml-0.5" /></label>
                             <Input
                                 type="email"
                                 placeholder="abebe@lead-life.com"

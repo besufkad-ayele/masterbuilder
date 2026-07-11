@@ -23,20 +23,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { FellowProgressService } from "@/services/FellowProgressService";
-import { CoachService } from "@/services/CoachService";
-import { FellowService } from "@/services/FellowService";
-import { StorageService } from "@/services/storageService";
+import { useCoachDashboard } from "@/hooks/use-dashboard";
 import { PeerCircle, FellowProfile, Portfolio } from "@/types";
 import FellowPortfolio from "@/components/features/dashboard/fellow/FellowPortfolio";
 import { cn } from "@/lib/utils";
 
 export default function CoachFellowsTab() {
     const searchParams = useSearchParams();
-    const [loading, setLoading] = useState(true);
-    const [circles, setCircles] = useState<PeerCircle[]>([]);
-    const [fellows, setFellows] = useState<FellowProfile[]>([]);
-    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+    const { data, peerCircles, loading: contextLoading } = useCoachDashboard();
+    const circles = peerCircles;
+    const fellows = data?.fellows ?? [];
+    const portfolios = data?.portfolios ?? [];
     const [selectedFellowId, setSelectedFellowId] = useState<string | null>(null);
     const [filterCircleId, setFilterCircleId] = useState<string>("all");
     const [filterPortfolioStatus, setFilterPortfolioStatus] = useState<string>("all");
@@ -45,39 +42,13 @@ export default function CoachFellowsTab() {
     const [sortBy, setSortBy] = useState<"name" | "progress" | "activity">("activity");
 
     useEffect(() => {
-        const fetchData = async () => {
-            const user = StorageService.getCurrentUser();
-            if (!user || user.role !== 'COACH') return;
+        const urlCircleId = searchParams.get("circleId");
+        if (urlCircleId && circles.some((c) => c.id === urlCircleId)) {
+            setFilterCircleId(urlCircleId);
+        }
+    }, [searchParams, circles]);
 
-            try {
-                const circleData = await CoachService.getPeerCirclesByCoachId(user.id);
-                setCircles(circleData);
-
-                // Initial filter from URL if present
-                const urlCircleId = searchParams.get("circleId");
-                if (urlCircleId && circleData.some(c => c.id === urlCircleId)) {
-                    setFilterCircleId(urlCircleId);
-                }
-
-                // Fetch all fellows across all coach's circles
-                const allFellowIds = Array.from(new Set(circleData.flatMap((c: PeerCircle) => c.fellow_ids))) as string[];
-                if (allFellowIds.length > 0) {
-                    const fellowData = await FellowService.getFellowsByIds(allFellowIds);
-                    setFellows(fellowData);
-
-                    // Fetch all portfolios for these fellows using the new service method
-                    const portfolioResults = await FellowProgressService.getPortfoliosByUserIds(allFellowIds);
-                    setPortfolios(portfolioResults);
-                }
-            } catch (error) {
-                console.error("Error fetching coach fellows data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [searchParams]);
+    const loading = contextLoading;
 
     const filteredFellows = useMemo(() => {
         return fellows.filter(f => {
@@ -213,7 +184,7 @@ export default function CoachFellowsTab() {
             {/* Smart Filter Bar */}
             <div className="bg-white p-6 rounded-[2.5rem] border-2 border-primary/5 shadow-sm space-y-6">
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="relative flex-1 min-w-[300px]">
+                    <div className="relative w-full min-w-0 flex-1 sm:min-w-[300px]">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground/50" />
                         <Input 
                             placeholder="Search by name or email..." 
@@ -222,7 +193,7 @@ export default function CoachFellowsTab() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
                         <Select value={filterCircleId} onValueChange={setFilterCircleId}>
                             <SelectTrigger className="w-[180px] h-14 rounded-2xl border-stone-100 bg-stone-50/50 font-serif italic">
                                 <SelectValue placeholder="All Circles" />

@@ -16,8 +16,9 @@ function AdminDashboardContent() {
 
   useEffect(() => {
     const user = StorageService.getCurrentUser();
-    if (!user) {
-      router.push("/login");
+    const token = StorageService.getAuthToken();
+    if (!user || !token) {
+      router.replace("/");
       return;
     }
 
@@ -28,7 +29,7 @@ function AdminDashboardContent() {
       if (allowedTabs.length > 0) {
         router.push(`/admin?tab=${allowedTabs[0]}`);
       } else {
-        router.push("/login");
+        router.replace("/");
       }
     }
   }, [activeTab, rawTab, router]);

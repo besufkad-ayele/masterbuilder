@@ -5,7 +5,7 @@ import {
 
 /**
  * StorageService handles client-side session persistence.
- * All domain data (Companies, Cohorts, etc.) should be fetched via firebaseService.
+ * All domain data (Companies, Cohorts, etc.) should be fetched via appService.
  */
 export class StorageService {
   private static isBrowser = typeof window !== 'undefined';
@@ -51,5 +51,10 @@ export class StorageService {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
     localStorage.removeItem('ldp_current_user_id');
+    try {
+      sessionStorage.removeItem('admin_dashboard_cache');
+    } catch {
+      /* ignore */
+    }
   }
 }

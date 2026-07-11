@@ -9,7 +9,7 @@ import { Bell, Edit, Trash2, Loader2, Plus, ExternalLink, Megaphone } from 'luci
 import { useAdminDashboardContext } from '@/context/AdminDashboardContext';
 import { LDPNotification } from '@/types';
 import LoadingSpinner from '@/components/ui/loading-spinner';
-import { firebaseService } from '@/services/firebaseService';
+import { appService } from '@/services/appService';
 import NotificationCreationForm from './NotificationCreationForm';
 import { cn } from "@/lib/utils";
 
@@ -27,7 +27,7 @@ const AdminNotificationsTab = () => {
     const handleDelete = async (id: string) => {
         setIsDeleting(id);
         try {
-            await firebaseService.notifications.deleteNotification(id);
+            await appService.notifications.deleteNotification(id);
             refresh();
         } catch (error) {
             console.error("Failed to delete notification", error);
@@ -38,7 +38,7 @@ const AdminNotificationsTab = () => {
 
     const toggleActive = async (notification: LDPNotification) => {
         try {
-            await firebaseService.notifications.updateNotification(notification.id, {
+            await appService.notifications.updateNotification(notification.id, {
                 is_active: !notification.is_active
             });
             refresh();

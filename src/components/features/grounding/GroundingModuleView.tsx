@@ -34,7 +34,7 @@ import {
 } from "@/types";
 import { QuizModule } from "./QuizModule";
 import { Badge } from "@/components/ui/badge";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import { useAppStore } from "@/stores";
 
 interface GroundingModuleViewProps {
@@ -113,7 +113,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
         if (!completedItems.has(url)) {
             markGroundingCompleted(moduleData.id, url);
             if (userId) {
-                await firebaseService.fellow.trackGroundingContent(userId, moduleData.id, url);
+                await appService.fellow.trackGroundingContent(userId, moduleData.id, url);
             }
         }
     };
@@ -122,7 +122,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
         if (!completedItems.has(url)) {
             markGroundingCompleted(moduleData.id, url);
             if (userId) {
-                await firebaseService.fellow.trackGroundingContent(userId, moduleData.id, url);
+                await appService.fellow.trackGroundingContent(userId, moduleData.id, url);
             }
         }
     };
@@ -169,10 +169,10 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                     const accuracy = score / totalQuestions;
                     percentage10 = Number((accuracy * 10).toFixed(1));
                 }
-                await firebaseService.fellow.updateGroundingPerformance(userId, moduleData.id, percentage10, "in_progress");
+                await appService.fellow.updateGroundingPerformance(userId, moduleData.id, percentage10, "in_progress");
                 markGroundingCompleted(moduleData.id, "part_one_assessment_passed");
                 setGroundingScore(moduleData.id, "part_one_assessment", percentage10);
-                await firebaseService.fellow.trackGroundingContent(userId, moduleData.id, "part_one_assessment_passed");
+                await appService.fellow.trackGroundingContent(userId, moduleData.id, "part_one_assessment_passed");
             } catch (err) {
                 console.error("Error saving grounding score:", err);
             } finally {
@@ -484,7 +484,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                                             : 100;
                                                         setGroundingScore(moduleData.id, quizKey, percentageScore);
                                                         if (userId) {
-                                                            await firebaseService.fellow.trackGroundingContent(userId, moduleData.id, quizKey);
+                                                            await appService.fellow.trackGroundingContent(userId, moduleData.id, quizKey);
                                                         }
                                                         setShowSubFactorQuiz(false);
                                                         if (activeSubFactorIdx < partOne.sub_factors.length - 1) {

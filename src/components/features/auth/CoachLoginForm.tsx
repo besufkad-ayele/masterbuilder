@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, ArrowLeft, Eye, EyeOff } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { StorageService } from "@/services/storageService";
-import { User } from "@/types";
+import { loginWithApi, routeAfterApiLogin } from "@/lib/auth/api-login";
+import { RequiredMark } from "@/components/ui/label";
 
 interface CoachLoginFormProps {
   onBack: () => void;
@@ -32,52 +29,15 @@ export default function CoachLoginForm({ onBack }: CoachLoginFormProps) {
     setError("");
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
-      const user = userCredential.user;
-
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-
-      if (!userDoc.exists()) {
-        setError("Account not found in our directory.");
-        setLoading(false);
+      const result = await loginWithApi(email.trim(), password.trim(), 'COACH');
+      if (!result.ok) {
+        setError(result.message);
         return;
       }
-
-      const profile = userDoc.data() as User;
-
-      // Validate role - Coaches and Admins are allowed
-      if (profile.role !== 'COACH' && profile.role !== 'ADMIN') {
-        setError("This account is not authorized for the Coach portal.");
-        setLoading(false);
-        return;
-      }
-
-      StorageService.setCurrentUser(profile);
-
-      // Verify coach profile exists
-      if (profile.role === "COACH") {
-        const q = query(collection(db, 'coach_profiles'), where('user_id', '==', user.uid));
-        const snapshot = await getDocs(q);
-        if (snapshot.empty) {
-          setError("Coach profile not found. Please contact support.");
-          setLoading(false);
-          return;
-        }
-        router.push("/coach");
-      } else if (profile.role === "ADMIN") {
-        router.push("/admin");
-      }
-    } catch (err: any) {
+      routeAfterApiLogin(router, result.rawUser);
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      if (
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/wrong-password" ||
-        err.code === "auth/invalid-credential"
-      ) {
-        setError("Invalid email or password. Please check your credentials.");
-      } else {
-        setError("An error occurred during sign in. Please try again.");
-      }
+      setError("An error occurred during sign in. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -111,6 +71,7 @@ export default function CoachLoginForm({ onBack }: CoachLoginFormProps) {
         <div className="space-y-4">
           <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest pl-1" htmlFor="email">
             Email Address
+            <RequiredMark className="ml-0.5" />
           </label>
           <input
             className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 h-16 placeholder:text-slate-300 px-6 text-base transition-all outline-none"
@@ -130,6 +91,7 @@ export default function CoachLoginForm({ onBack }: CoachLoginFormProps) {
         <div className="space-y-4">
           <label className="text-[#1B4332] text-xs font-bold uppercase tracking-widest pl-1" htmlFor="password">
             Password
+            <RequiredMark className="ml-0.5" />
           </label>
           <div className="relative group/pass">
             <input

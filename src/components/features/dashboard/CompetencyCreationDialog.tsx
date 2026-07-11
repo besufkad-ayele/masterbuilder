@@ -17,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X, Heart, Brain, Wrench, Video, FileText, HelpCircle, Lightbulb, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CompetencyDictionary, DictionaryProficiencyLevel, DictionaryBehavior } from "@/types";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
+import { RequiredMark } from "@/components/ui/label";
 
 interface VideoResource {
   id: string;
@@ -86,7 +87,7 @@ export default function CompetencyCreationDialog() {
     const fetchCompetencies = async () => {
       // For now, mapping top-level competencies to Directory format
       // In a real scenario, we might fetch the full structure
-      const data = await firebaseService.admin.getCompetencies();
+      const data = await appService.admin.getCompetencies();
       const mapped: CompetencyDictionary[] = data.map(c => ({
         id: c.id,
         code: c.code || "",
@@ -407,7 +408,7 @@ export default function CompetencyCreationDialog() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Competency</label>
+                  <label className="text-sm font-medium">Select Competency<RequiredMark className="ml-0.5" /></label>
                   <Select value={selectedCompetency?.id || ""} onValueChange={(value) => {
                     const competency = competencies.find(c => c.id === value);
                     setSelectedCompetency(competency || null);
@@ -429,7 +430,7 @@ export default function CompetencyCreationDialog() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Proficiency Level</label>
+                  <label className="text-sm font-medium">Proficiency Level<RequiredMark className="ml-0.5" /></label>
                   <Select
                     value={selectedProficiency?.level || ""}
                     onValueChange={(value) => {
@@ -479,7 +480,7 @@ export default function CompetencyCreationDialog() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Behavioral Indicator</label>
+                  <label className="text-sm font-medium">Behavioral Indicator<RequiredMark className="ml-0.5" /></label>
                   <Select
                     value={selectedBehavioralIndicator?.id || ""}
                     onValueChange={(value) => {

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import ReactMarkdown from 'react-markdown';
 import {
     GroundingModuleStructure,
@@ -95,7 +96,11 @@ const FormField: React.FC<FormFieldProps> = ({ label, error, children, optional,
     <div className={cn("space-y-2", className)}>
         <label className="text-xs font-black text-[#C5A059] uppercase tracking-widest pl-1">
             {label}
-            {optional && <span className="ml-1 text-[8px] opacity-70">(Optional)</span>}
+            {optional ? (
+                <span className="ml-1 text-[8px] opacity-70">(Optional)</span>
+            ) : (
+                <RequiredMark className="ml-0.5" />
+            )}
         </label>
         {children}
         <ErrorMessage error={error} />
@@ -342,6 +347,7 @@ const StrategicContextCard: React.FC<StrategicContextCardProps> = ({
                                                     <div key={optIdx} className="space-y-1">
                                                         <label className="text-[9px] font-black text-muted-foreground uppercase flex items-center gap-1.5 pl-1">
                                                             OPTION {label}
+                                                            <RequiredMark className="ml-0.5" />
                                                             {isCorrect && <Check className="w-2.5 h-2.5 text-green-600" />}
                                                         </label>
                                                         <Input
@@ -365,7 +371,7 @@ const StrategicContextCard: React.FC<StrategicContextCardProps> = ({
 
                                         <div className="pt-4 border-t border-dashed">
                                             <div className="w-full">
-                                                <label className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 block pl-1">Correct Answer</label>
+                                                <label className="text-[9px] font-black text-muted-foreground uppercase mb-1.5 block pl-1">Correct Answer<RequiredMark className="ml-0.5" /></label>
                                                 <div className="relative">
                                                     <select
                                                         className={cn(
@@ -540,6 +546,7 @@ const InternalDocumentCard: React.FC<InternalDocumentCardProps> = ({ factor, fId
                         <label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                             <PenLine className="w-3 h-3" />
                             Markdown Content
+                            <RequiredMark className="ml-0.5" />
                         </label>
                         <Textarea
                             className={cn(
@@ -587,6 +594,7 @@ const InternalDocumentCard: React.FC<InternalDocumentCardProps> = ({ factor, fId
                             <label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                                 <FileText className="w-3 h-3" />
                                 Article Title
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 className={cn(
@@ -603,6 +611,7 @@ const InternalDocumentCard: React.FC<InternalDocumentCardProps> = ({ factor, fId
                             <label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                                 <Globe className="w-3 h-3" />
                                 Resource URL (https://)
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 className={cn(
@@ -619,6 +628,7 @@ const InternalDocumentCard: React.FC<InternalDocumentCardProps> = ({ factor, fId
                             <label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2">
                                 <ImageIcon className="w-3 h-3" />
                                 Image URL
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 className={cn(
@@ -679,6 +689,7 @@ const AssessmentQuestionCard: React.FC<AssessmentQuestionCardProps> = ({ q, qIdx
                     <div key={opt} className="space-y-1.5">
                         <label className="text-[10px] font-black text-muted-foreground uppercase flex items-center gap-2 pl-1">
                             OPTION {opt}
+                            <RequiredMark className="ml-0.5" />
                             {q.correct_answer === opt && <Check className="w-3 h-3 text-green-600 font-black" />}
                         </label>
                         <Input
@@ -701,7 +712,7 @@ const AssessmentQuestionCard: React.FC<AssessmentQuestionCardProps> = ({ q, qIdx
 
             <div className="pt-6 pl-14 border-t border-dashed">
                 <div className="max-w-xs">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block pl-1">Correct Answer</label>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase mb-2 block pl-1">Correct Answer<RequiredMark className="ml-0.5" /></label>
                     <div className="relative">
                         <select
                             className={cn(

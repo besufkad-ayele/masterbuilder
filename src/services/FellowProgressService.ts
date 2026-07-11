@@ -1,7 +1,3 @@
-import { db } from '@/lib/firebase';
-import {
-    collection, getDocs, query, where, doc, updateDoc
-} from 'firebase/firestore';
 import {
     Portfolio,
     PhaseProgress,
@@ -15,6 +11,17 @@ import {
     GroundingModule,
 } from '@/types';
 import type { Exam, ExamAttempt } from '@/services/ExamService';
+import { apiClient, groundingApi, progressApi } from '@/lib/api';
+import {
+    mapPortfolio,
+    mapPhaseProgress,
+    mapGroundingResult,
+    mapWaveResult,
+    mapBehavioralIndicator,
+    mapCompetency,
+    mapWaveCompetency,
+    mapGroundingModule,
+} from '@/lib/api/mappers';
 
 export interface CompetencyBiBreakdown {
     id: string;
@@ -36,6 +43,17 @@ export interface CompetencyPerformanceMetrics {
     hasExamAttempt: boolean;
     biBreakdown: CompetencyBiBreakdown[];
 }
+
+const mapWave = (w: Record<string, unknown>): Wave => ({
+    id: String(w.id),
+    cohort_id: String(w.cohortId ?? w.cohort_id),
+    number: Number(w.number),
+    name: w.name ? String(w.name) : undefined,
+    status: w.status as Wave['status'],
+    phase_states: (w.phaseStates ?? w.phase_states) as Wave['phase_states'],
+    created_at: String(w.createdAt ?? w.created_at),
+    updated_at: String(w.updatedAt ?? w.updated_at),
+});
 
 /** Resolve BI ids for a competency from progress records and the BI registry. */
 export function resolveCompetencyBiIds(
@@ -87,142 +105,88 @@ export function resolveCompetencyExamScore(
 export const FellowProgressService = {
 
     async getPortfoliosByFellow(userId: string): Promise<Portfolio[]> {
-        const q = query(collection(db, 'portfolios'), where('user_id', '==', userId));
-        const s = await getDocs(q);
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as Portfolio));
+        const data = await progressApi.getPortfolios(userId) as Record<string, unknown>[];
+        return data.map(mapPortfolio);
     },
 
     async getPortfoliosByUserIds(userIds: string[]): Promise<Portfolio[]> {
         if (!userIds || userIds.length === 0) return [];
-
-        const portfoliosRef = collection(db, 'portfolios');
-        const chunks = [];
-        for (let i = 0; i < userIds.length; i += 10) {
-            chunks.push(userIds.slice(i, i + 10));
-        }
-
-        const results: Portfolio[] = [];
-        for (const chunk of chunks) {
-            const q = query(portfoliosRef, where('user_id', 'in', chunk));
-            const snapshot = await getDocs(q);
-            results.push(...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Portfolio)));
-        }
-        return results;
+        const results = await Promise.all(
+            userIds.map((userId) => progressApi.getPortfolios(userId) as Promise<Record<string, unknown>[]>)
+        );
+        return results.flat().map(mapPortfolio);
     },
 
     async getPhaseProgressByFellow(userId: string): Promise<PhaseProgress[]> {
-        const q = query(collection(db, 'phase_progress'), where('user_id', '==', userId));
-        const s = await getDocs(q);
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as PhaseProgress));
+        const data = await progressApi.getPhaseProgress(userId) as Record<string, unknown>[];
+        return data.map(mapPhaseProgress);
     },
 
     async getGroundingResultsByFellow(userId: string): Promise<GroundingResult[]> {
-        const q = query(collection(db, 'grounding_results'), where('fellow_id', '==', userId));
-        const s = await getDocs(q);
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as GroundingResult));
+        const data = await progressApi.getGroundingResults(userId) as Record<string, unknown>[];
+        return data.map(mapGroundingResult);
     },
 
     async getWaveResultsByFellow(userId: string): Promise<WaveResult[]> {
-        const q = query(collection(db, 'wave_results'), where('user_id', '==', userId));
-        const s = await getDocs(q);
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as WaveResult));
+        const data = await progressApi.getWaveResults(userId) as Record<string, unknown>[];
+        return data.map(mapWaveResult);
     },
 
     async updateWaveResult(resultId: string, updates: Partial<WaveResult>): Promise<void> {
-        const ref = doc(db, 'wave_results', resultId);
-        await updateDoc(ref, {
-            ...updates,
-            updated_at: new Date().toISOString(),
+        await apiClient.patch(`/progress/wave-results/${resultId}`, {
+            examScore: updates.exam_score,
+            finalScore: updates.final_score,
+            competencyAvg: updates.competency_avg,
+            groundingScore: updates.grounding_score,
         });
     },
 
     async updateGroundingResult(resultId: string, updates: Partial<GroundingResult>): Promise<void> {
-        const ref = doc(db, 'grounding_results', resultId);
-        await updateDoc(ref, {
-            ...updates,
-            updated_at: new Date().toISOString(),
+        if (updates.fellow_id && updates.grounding_id) {
+            await progressApi.upsertGroundingResult({
+                fellowId: updates.fellow_id,
+                groundingId: updates.grounding_id,
+                score: updates.score,
+                isPassed: updates.is_passed,
+                status: updates.status,
+            });
+            return;
+        }
+        await apiClient.patch(`/progress/grounding-results/${resultId}`, {
+            score: updates.score,
+            isPassed: updates.is_passed,
+            status: updates.status,
         });
     },
 
     async getAllBehavioralIndicators(): Promise<BehavioralIndicator[]> {
-        // Get standalone behavioral indicators
-        const biSnapshot = await getDocs(collection(db, 'behavioral_indicators'));
-        const standaloneBIs = biSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as BehavioralIndicator));
-
-        // Get behavioral indicators from competency library
-        const librarySnapshot = await getDocs(collection(db, 'competency_library'));
-        const libraryBIs: BehavioralIndicator[] = [];
-
-        librarySnapshot.docs.forEach(doc => {
-            const library = doc.data();
-            const libraryId = doc.id;
-            
-            if (library.competency?.behavioral_indicators) {
-                library.competency.behavioral_indicators.forEach((bi: any, index: number) => {
-                    libraryBIs.push({
-                        id: `${libraryId}_BI${index + 1}`,
-                        competency_id: libraryId,
-                        code: bi.code || `BI${index + 1}`,
-                        title: bi.description || bi.code || `Behavioral Indicator ${index + 1}`,
-                        description: bi.description || '',
-                        level: library.competency.target_level || 'Basic',
-                        created_at: library.created_at || new Date().toISOString(),
-                        updated_at: library.updated_at || new Date().toISOString()
-                    } as BehavioralIndicator);
-                });
-            }
-        });
-
-        // Combine both sources
-        return [...standaloneBIs, ...libraryBIs];
+        const data = await progressApi.getBehavioralIndicators() as Record<string, unknown>[];
+        return data.map(mapBehavioralIndicator);
     },
 
     async getAllCompetencies(): Promise<Competency[]> {
-        // Get standalone competencies
-        const compSnapshot = await getDocs(collection(db, 'competencies'));
-        const standaloneComps = compSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Competency));
-
-        // Get competencies from competency library
-        const librarySnapshot = await getDocs(collection(db, 'competency_library'));
-        const libraryComps: Competency[] = librarySnapshot.docs.map(doc => {
-            const library = doc.data();
-            return {
-                id: doc.id,
-                code: library.competency?.name?.split(' ').map((w: string) => w[0]).join('').toUpperCase() || 'COMP',
-                title: library.competency?.name || 'Competency',
-                description: library.competency?.definition || '',
-                category: library.competency_domain?.toLowerCase().includes('yourself') ? 'ly' : 
-                         library.competency_domain?.toLowerCase().includes('others') ? 'lo' : 
-                         library.competency_domain?.toLowerCase().includes('organization') ? 'lorg' : 'general',
-                level: library.competency?.target_level || 'Basic',
-                created_at: library.created_at || new Date().toISOString(),
-                updated_at: library.updated_at || new Date().toISOString()
-            } as Competency;
-        });
-
-        // Combine both sources
-        return [...standaloneComps, ...libraryComps];
+        const data = await progressApi.getCompetencies() as Record<string, unknown>[];
+        return data.map(mapCompetency);
     },
 
     async getWavesByCohort(cohortId: string): Promise<Wave[]> {
-        const q = query(collection(db, 'waves'), where('cohort_id', '==', cohortId));
-        const s = await getDocs(q);
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as Wave));
+        const data = await progressApi.getWaves(cohortId) as Record<string, unknown>[];
+        return data.map(mapWave);
     },
 
     async getAllWaves(): Promise<Wave[]> {
-        const s = await getDocs(collection(db, 'waves'));
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as Wave));
+        const data = await progressApi.getWaves() as Record<string, unknown>[];
+        return data.map(mapWave);
     },
 
     async getAllWaveCompetencies(): Promise<WaveCompetency[]> {
-        const s = await getDocs(collection(db, 'wave_competencies'));
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as WaveCompetency));
+        const data = await progressApi.getWaveCompetencies() as Record<string, unknown>[];
+        return data.map(mapWaveCompetency);
     },
 
     async getGroundingModules(): Promise<GroundingModule[]> {
-        const s = await getDocs(collection(db, 'grounding_modules'));
-        return s.docs.map(d => ({ id: d.id, ...d.data() } as GroundingModule));
+        const data = await groundingApi.getAll() as Record<string, unknown>[];
+        return data.map(mapGroundingModule);
     },
 
     /**
@@ -240,11 +204,11 @@ export const FellowProgressService = {
             reviewed_by?: string;
         }
     ): Promise<void> {
-        const ref = doc(db, 'portfolios', portfolioId);
-        await updateDoc(ref, {
-            ...review,
-            reviewed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+        await progressApi.reviewPortfolio(portfolioId, {
+            status: review.status,
+            feedback: review.feedback,
+            score: review.score,
+            reviewedBy: review.reviewed_by,
         });
     },
 

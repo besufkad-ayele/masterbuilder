@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import {
     Company,
     Cohort,
@@ -105,9 +105,9 @@ export default function CompanyOnboardingPage() {
         const fetchData = async () => {
             try {
                 const [companyData, cohortsData, groundingItems] = await Promise.all([
-                    firebaseService.getCompany(companyId),
-                    firebaseService.getCompanyCohorts(companyId),
-                    firebaseService.admin.getGroundingLibraries()
+                    appService.getCompany(companyId),
+                    appService.getCompanyCohorts(companyId),
+                    appService.admin.getGroundingLibraries()
                 ]);
 
                 const gm = groundingItems.find(m => m.company_id === companyId);
@@ -194,7 +194,7 @@ export default function CompanyOnboardingPage() {
                         <h2 className="text-3xl md:text-4xl font-bold text-primary">{company.name}</h2>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-bold font-display tracking-tight text-foreground leading-[1.1]">
+                    <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold font-display tracking-tight text-foreground leading-[1.1]">
                         Master Builder <br className="hidden md:block" />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary">
                             Leadership Development

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LDPNotification } from '@/types';
 import { useAdminDashboardContext } from '@/context/AdminDashboardContext';
-import { firebaseService } from '@/services/firebaseService';
+import { appService } from '@/services/appService';
 import { Loader2 } from 'lucide-react';
 
 interface NotificationCreationFormProps {
@@ -37,9 +37,9 @@ const NotificationCreationForm: React.FC<NotificationCreationFormProps> = ({ onC
         setLoading(true);
         try {
             if (initialData?.id) {
-                await firebaseService.notifications.updateNotification(initialData.id, formData);
+                await appService.notifications.updateNotification(initialData.id, formData);
             } else {
-                await firebaseService.notifications.createNotification(formData as any);
+                await appService.notifications.createNotification(formData as any);
             }
             onCreated();
         } catch (error) {
@@ -51,9 +51,9 @@ const NotificationCreationForm: React.FC<NotificationCreationFormProps> = ({ onC
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                    <Label htmlFor="title" className="text-xs font-black uppercase tracking-widest text-[#1B4332]/60">Headline</Label>
+                    <Label htmlFor="title" required className="text-xs font-black uppercase tracking-widest text-[#1B4332]/60">Headline</Label>
                     <Input
                         id="title"
                         placeholder="e.g. Wave 1 Graduation Approaching!"
@@ -83,7 +83,7 @@ const NotificationCreationForm: React.FC<NotificationCreationFormProps> = ({ onC
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="message" className="text-xs font-black uppercase tracking-widest text-[#1B4332]/60">Detailed Message</Label>
+                <Label htmlFor="message" required className="text-xs font-black uppercase tracking-widest text-[#1B4332]/60">Detailed Message</Label>
                 <Textarea
                     id="message"
                     placeholder="Detailed narrative for the broadcast..."
@@ -95,7 +95,7 @@ const NotificationCreationForm: React.FC<NotificationCreationFormProps> = ({ onC
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <Label htmlFor="audience" className="text-xs font-black uppercase tracking-widest text-[#1B4332]/60">Target Audience</Label>
                     <Select

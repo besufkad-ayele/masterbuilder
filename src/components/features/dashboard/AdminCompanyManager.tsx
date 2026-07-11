@@ -33,6 +33,7 @@ import { Company, subsidiaries as Subsidiary } from "@/types";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal, Edit, Trash2, Search, ArrowUpDown, Plus, Globe, Building2, Phone, Mail, MapPin, Upload, Loader2, X } from "lucide-react";
 import { companyService } from '@/services/companyService';
+import { RequiredMark } from "@/components/ui/label";
 
 interface AdminCompanyManagerProps {
   onCompanySelect?: (company: Company | null) => void;
@@ -392,10 +393,11 @@ export default function AdminCompanyManager({ onCompanySelect, selectedCompany }
 
       {/* Companies Table */}
       <div className="rounded-2xl border border-border bg-card/50 overflow-hidden">
-        <Table>
+        <div className="overflow-x-auto">
+        <Table className="min-w-[720px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[300px]">
+              <TableHead className="min-w-[200px] sm:w-[300px]">
                 <button className="flex items-center gap-2 hover:text-foreground transition-colors" onClick={() => { setSortField("name"); setSortDirection(prev => prev === "asc" ? "desc" : "asc"); }}>
                   Organization <ArrowUpDown className="h-3 w-3" />
                 </button>
@@ -492,11 +494,12 @@ export default function AdminCompanyManager({ onCompanySelect, selectedCompany }
             ))}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2">
           <p className="text-sm text-muted-foreground">
             Displaying {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredAndSortedCompanies.length)} of {filteredAndSortedCompanies.length} organizations
           </p>
@@ -590,9 +593,9 @@ function CompanyForm({ formState, setFormState, addSubsidiary, updateSubsidiary,
       {/* Primary Info */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-widest text-[#1B4332]/70">Core Identity</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Company Legal Name</label>
+            <label className="text-sm font-medium">Company Legal Name<RequiredMark className="ml-0.5" /></label>
             <Input
               value={formState.name}
               onChange={(e) => setFormState({ ...formState, name: e.target.value })}
@@ -616,7 +619,7 @@ function CompanyForm({ formState, setFormState, addSubsidiary, updateSubsidiary,
       {/* Communication */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-widest text-[#1B4332]/70">Contact & Digital</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Official Email</label>
             <div className="relative">
@@ -690,7 +693,7 @@ function CompanyForm({ formState, setFormState, addSubsidiary, updateSubsidiary,
       {/* Visual & Scale */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold uppercase tracking-widest text-[#1B4332]/70">Scale & Branding</h3>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Company Size</label>
             <select

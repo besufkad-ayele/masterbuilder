@@ -1,100 +1,78 @@
-import { db } from "@/lib/firebase";
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    addDoc,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy,
-    serverTimestamp
-} from "firebase/firestore";
 import { CompetencyDictionary, CompetencyLibrary } from "@/types";
-
-const DICTIONARY_COLLECTION = "competency_dictionary";
-const LIBRARY_COLLECTION = "competency_library";
+import { competenciesApi } from '@/lib/api';
+import { mapDictionary, mapLibrary } from '@/lib/api/mappers';
 
 export const competencyService = {
-    // --- Competency Dictionary ---
     async getDictionary(): Promise<CompetencyDictionary[]> {
-        const q = query(collection(db, DICTIONARY_COLLECTION), orderBy("name", "asc"));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetencyDictionary));
+        const data = await competenciesApi.getDictionary() as Record<string, unknown>[];
+        return data.map(mapDictionary);
     },
 
     async getDictionaryItem(id: string): Promise<CompetencyDictionary | null> {
-        const docRef = doc(db, DICTIONARY_COLLECTION, id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            return { id: docSnap.id, ...docSnap.data() } as CompetencyDictionary;
-        }
-        return null;
+        const items = await this.getDictionary();
+        return items.find((i) => i.id === id) ?? null;
     },
 
     async createDictionaryItem(item: Omit<CompetencyDictionary, "id" | "created_at" | "updated_at">): Promise<string> {
-        const docRef = await addDoc(collection(db, DICTIONARY_COLLECTION), {
-            ...item,
-            created_at: serverTimestamp(),
-            updated_at: serverTimestamp()
-        });
-        return docRef.id;
+        const created = await competenciesApi.createDictionary({
+            code: item.code,
+            name: item.name,
+            definition: item.definition,
+            importance: item.importance,
+            proficiencyLevels: item.proficiency_levels,
+        }) as Record<string, unknown>;
+        return String(created.id);
     },
 
     async updateDictionaryItem(id: string, item: Partial<CompetencyDictionary>): Promise<void> {
-        const docRef = doc(db, DICTIONARY_COLLECTION, id);
-        await updateDoc(docRef, {
-            ...item,
-            updated_at: serverTimestamp()
+        await competenciesApi.updateDictionary(id, {
+            code: item.code,
+            name: item.name,
+            definition: item.definition,
+            importance: item.importance,
+            proficiencyLevels: item.proficiency_levels,
         });
     },
 
     async deleteDictionaryItem(id: string): Promise<void> {
-        await deleteDoc(doc(db, DICTIONARY_COLLECTION, id));
+        await competenciesApi.deleteDictionary(id);
     },
 
-    // --- Competency Library ---
     async getLibrary(): Promise<CompetencyLibrary[]> {
-        const q = collection(db, LIBRARY_COLLECTION);
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetencyLibrary));
+        const data = await competenciesApi.getLibrary() as Record<string, unknown>[];
+        return data.map(mapLibrary);
     },
 
     async getLibraryByCompany(companyId: string): Promise<CompetencyLibrary[]> {
-        const q = query(collection(db, LIBRARY_COLLECTION), where('company_id', '==', companyId));
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CompetencyLibrary));
+        const data = await competenciesApi.getLibrary(companyId) as Record<string, unknown>[];
+        return data.map(mapLibrary);
     },
 
     async getLibraryItem(id: string): Promise<CompetencyLibrary | null> {
-        const docRef = doc(db, LIBRARY_COLLECTION, id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            return { id: docSnap.id, ...docSnap.data() } as CompetencyLibrary;
-        }
-        return null;
+        const items = await this.getLibrary();
+        return items.find((i) => i.id === id) ?? null;
     },
 
     async createLibraryItem(item: Omit<CompetencyLibrary, "id" | "created_at" | "updated_at">): Promise<string> {
-        const docRef = await addDoc(collection(db, LIBRARY_COLLECTION), {
-            ...item,
-            created_at: serverTimestamp(),
-            updated_at: serverTimestamp()
-        });
-        return docRef.id;
+        const created = await competenciesApi.createLibrary({
+            companyId: item.company_id,
+            competencyDomain: item.competency_domain,
+            dictionaryId: item.dictionary_id,
+            competency: item.competency,
+        }) as Record<string, unknown>;
+        return String(created.id);
     },
 
     async updateLibraryItem(id: string, item: Partial<CompetencyLibrary>): Promise<void> {
-        const docRef = doc(db, LIBRARY_COLLECTION, id);
-        await updateDoc(docRef, {
-            ...item,
-            updated_at: serverTimestamp()
+        await competenciesApi.updateLibrary(id, {
+            companyId: item.company_id,
+            competencyDomain: item.competency_domain,
+            dictionaryId: item.dictionary_id,
+            competency: item.competency,
         });
     },
 
     async deleteLibraryItem(id: string): Promise<void> {
-        await deleteDoc(doc(db, LIBRARY_COLLECTION, id));
+        await competenciesApi.deleteLibrary(id);
     }
 };

@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Code, Plus, BookOpen, Save, FileJson, ArrowLeft, Trash2 } from "lucide-react";
 import { CompetencyFramework, CompetencyDirectory } from "@/types";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 
@@ -33,7 +33,7 @@ export default function CompetencyDictionarySidebar() {
 
   useEffect(() => {
     const fetchCompetencies = async () => {
-      const competenciesData = await firebaseService.admin.getCompetencies();
+      const competenciesData = await appService.admin.getCompetencies();
       const mappedCompetencies: CompetencyDirectory[] = competenciesData.map((c: any) => ({
         id: c.id,
         code: c.code,
@@ -207,14 +207,14 @@ export default function CompetencyDictionarySidebar() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Code</Label>
+                      <Label required>Code</Label>
                       <Input
                         value={editingCompetency.code}
                         onChange={e => setEditingCompetency({ ...editingCompetency, code: e.target.value })}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Name</Label>
+                      <Label required>Name</Label>
                       <Input
                         value={editingCompetency.name}
                         onChange={e => setEditingCompetency({ ...editingCompetency, name: e.target.value })}
@@ -222,14 +222,14 @@ export default function CompetencyDictionarySidebar() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Definition</Label>
+                    <Label required>Definition</Label>
                     <Textarea
                       value={editingCompetency.definition}
                       onChange={e => setEditingCompetency({ ...editingCompetency, definition: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Importance</Label>
+                    <Label required>Importance</Label>
                     <Textarea
                       value={editingCompetency.importance}
                       onChange={e => setEditingCompetency({ ...editingCompetency, importance: e.target.value })}
@@ -296,7 +296,7 @@ export default function CompetencyDictionarySidebar() {
               <div className="h-full overflow-y-auto pr-2 space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="frameworkName">Framework Name</Label>
+                    <Label htmlFor="frameworkName" required>Framework Name</Label>
                     <Input
                       id="frameworkName"
                       value={framework.frameworkName}
@@ -308,7 +308,7 @@ export default function CompetencyDictionarySidebar() {
                   <div className="space-y-4 pt-4 border-t border-border">
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Overall Competency</h3>
                     <div className="space-y-2">
-                      <Label htmlFor="title">Title</Label>
+                      <Label htmlFor="title" required>Title</Label>
                       <Input
                         id="title"
                         value={framework.overallCompetency.title}
@@ -317,7 +317,7 @@ export default function CompetencyDictionarySidebar() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
+                      <Label htmlFor="description" required>Description</Label>
                       <Textarea
                         id="description"
                         className="min-h-[100px]"

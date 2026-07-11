@@ -17,7 +17,7 @@ import { ArticleSection } from "@/components/features/competency/ArticleSection"
 import { QuizModule } from "@/components/features/competency/QuizModule";
 import { Lock } from "lucide-react";
 import { competencyService } from "@/services/competencyService";
-import { firebaseService } from "@/services/firebaseService";
+import { appService } from "@/services/appService";
 import LoadingSpinner from "@/components/ui/loading-spinner";
 import { PhaseProgress } from "@/types";
 
@@ -64,7 +64,7 @@ export const CompetencyDetailView: React.FC<CompetencyDetailViewProps> = ({ comp
         const fetchProgress = async () => {
             if (!userId) return;
             try {
-                const progress = await firebaseService.fellow.getFellowProgress(userId);
+                const progress = await appService.fellow.getFellowProgress(userId);
                 setPhaseProgressData(progress);
 
                 // Reconstruct unlockedPhases and completedSubTabs from persistent storage
@@ -194,7 +194,7 @@ export const CompetencyDetailView: React.FC<CompetencyDetailViewProps> = ({ comp
                 const updates = {
                     [tab === 'video' ? 'video_completed' : 'article_completed']: true
                 };
-                await firebaseService.fellow.updatePhaseProgress(userId, uniqueBiId, activePhase, updates);
+                await appService.fellow.updatePhaseProgress(userId, uniqueBiId, activePhase, updates);
 
                 // Update local state to avoid staleness
                 setPhaseProgressData(prev => {
@@ -244,7 +244,7 @@ export const CompetencyDetailView: React.FC<CompetencyDetailViewProps> = ({ comp
                 updates.believe_passed = true;
             }
 
-            await firebaseService.fellow.updatePhaseProgress(userId, uniqueBiId, activePhase, updates);
+            await appService.fellow.updatePhaseProgress(userId, uniqueBiId, activePhase, updates);
 
             // Update local state to avoid staleness
             setPhaseProgressData(prev => {

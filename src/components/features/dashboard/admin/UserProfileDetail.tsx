@@ -48,6 +48,7 @@ import { FacilitatorService } from "@/services/FacilitatorService";
 import { FellowService } from "@/services/FellowService";
 import FellowUpdateForm from "./FellowUpdateForm";
 import { FellowProfile } from "@/types";
+import { RequiredMark } from "@/components/ui/label";
 
 interface UserProfileDetailProps {
     user: {
@@ -430,6 +431,7 @@ export default function UserProfileDetail({
                         <div className="space-y-1.5 sm:space-y-2">
                             <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-primary/60 px-1">
                                 Full Name
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 value={editData.name}
@@ -444,6 +446,7 @@ export default function UserProfileDetail({
                         <div className="space-y-1.5 sm:space-y-2">
                             <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-primary/60 px-1">
                                 Email Address
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 type="email"

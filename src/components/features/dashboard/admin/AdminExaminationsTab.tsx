@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Label, RequiredMark } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
@@ -379,10 +379,10 @@ export default function AdminExaminationsTab() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.4em] text-primary font-black mb-2">Academic Control</p>
-          <h1 className="text-5xl font-serif font-bold text-foreground">Examinations</h1>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-foreground">Examinations</h1>
           <p className="text-muted-foreground mt-4 max-w-2xl">
             Build competency question banks, then assemble examinations for selected fellows.
           </p>
@@ -404,7 +404,7 @@ export default function AdminExaminationsTab() {
               setActiveExamination(null);
             }}
           >
-            <SelectTrigger className="rounded-xl w-[260px]">
+            <SelectTrigger className="rounded-xl w-full sm:w-[260px]">
               <span className={cn(!selectedCohortName && "text-muted-foreground")}>
                 {selectedCohortName || "Select Cohort"}
               </span>
@@ -681,6 +681,7 @@ function QuestionBankEditor({
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                     Question Text
+                    <RequiredMark className="ml-0.5" />
                   </label>
                   <Input
                     value={question.text}
@@ -919,7 +920,7 @@ function ExaminationEditor({
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Title</Label>
+              <Label required className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Title</Label>
               <Input
                 value={examination.title || ""}
                 onChange={(e) => set({ title: e.target.value })}

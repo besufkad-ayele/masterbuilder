@@ -399,7 +399,7 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
         <div className="fixed top-6 right-6 z-[320]">
             <Card
                 className={cn(
-                    "rounded-xl border shadow-xl min-w-[300px]",
+                    "rounded-xl border shadow-xl w-[min(100vw-2rem,360px)] min-w-0",
                     notice.type === "success" && "border-emerald-200 bg-emerald-50",
                     notice.type === "error" && "border-red-200 bg-red-50",
                     notice.type === "warning" && "border-amber-200 bg-amber-50"
@@ -446,7 +446,7 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                         <p className="text-sm font-black uppercase tracking-[0.2em] text-[#8B9B7E] mb-2">
                                             Questions Answered
                                         </p>
-                                        <div className="text-5xl font-serif font-black text-[#1B4332]">
+                                        <div className="text-3xl sm:text-5xl font-serif font-black text-[#1B4332]">
                                             {submittedAnsweredCount}/{submittedTotalQuestions}
                                         </div>
                                     </div>
@@ -637,7 +637,7 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
                                 </div>
 
                                 <Card className="rounded-[2.5rem] border-2 border-[#E8E4D8] overflow-hidden">
-                                    <CardHeader className="bg-muted/30 py-8 px-10">
+                                    <CardHeader className="bg-muted/30 py-5 sm:py-8 px-4 sm:px-10">
                                         <div className="flex items-center gap-3 mb-2">
                                             <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest">
                                                 {currentQuestion.type === "multiple_choice" ? "Multiple Choice" : "Written Response"}
@@ -740,7 +740,7 @@ export default function FellowExaminationsTab({ fellowId }: FellowExaminationsTa
             <div className="space-y-10 animate-in fade-in duration-500">
                 <div>
                     <p className="text-xs uppercase tracking-[0.4em] text-primary font-black mb-2">Final Evaluation</p>
-                    <h1 className="text-5xl font-serif font-bold text-[#1B4332]">Examinations</h1>
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-[#1B4332]">Examinations</h1>
                     <p className="text-[#1B4332]/60 mt-4 max-w-xl italic font-serif">
                         Examinations assigned to you appear here. Once you begin, you cannot leave until you submit.
                     </p>

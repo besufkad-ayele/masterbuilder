@@ -39,6 +39,7 @@ import { CohortService } from "@/services/CohortService";
 import { FellowService } from "@/services/FellowService";
 import { Company, Cohort, CoachProfile, FellowProfile } from "@/types";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 
 interface PeerCircleCreationFormProps {
     onCircleCreated: () => void;
@@ -193,7 +194,7 @@ export default function PeerCircleCreationForm({ onCircleCreated }: PeerCircleCr
                         {/* Left Column: Basic Info */}
                         <div className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Circle Name</label>
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Circle Name<RequiredMark className="ml-0.5" /></label>
                                 <Input
                                     placeholder="e.g. Rising Stars A"
                                     value={name}
@@ -203,7 +204,7 @@ export default function PeerCircleCreationForm({ onCircleCreated }: PeerCircleCr
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Company</label>
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Company<RequiredMark className="ml-0.5" /></label>
                                 <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
                                     <SelectTrigger className="rounded-xl border-2 border-[#E8E4D8] focus:ring-0 focus:border-primary h-12 font-serif italic">
                                         <SelectValue placeholder="Select Company" />
@@ -222,7 +223,7 @@ export default function PeerCircleCreationForm({ onCircleCreated }: PeerCircleCr
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Cohort</label>
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Cohort<RequiredMark className="ml-0.5" /></label>
                                 <Select 
                                     value={selectedCohortId} 
                                     onValueChange={setSelectedCohortId}
@@ -245,7 +246,7 @@ export default function PeerCircleCreationForm({ onCircleCreated }: PeerCircleCr
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Assigned Coach</label>
+                                <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Assigned Coach<RequiredMark className="ml-0.5" /></label>
                                 <Select value={selectedCoachId} onValueChange={setSelectedCoachId}>
                                     <SelectTrigger className="rounded-xl border-2 border-[#E8E4D8] focus:ring-0 focus:border-primary h-12 font-serif italic">
                                         <SelectValue placeholder="Select Coach" />
@@ -268,7 +269,7 @@ export default function PeerCircleCreationForm({ onCircleCreated }: PeerCircleCr
                         <div className="flex flex-col h-full space-y-4">
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Assign Fellows</label>
+                                    <label className="text-xs font-black uppercase tracking-[0.2em] text-primary px-1">Assign Fellows<RequiredMark className="ml-0.5" /></label>
                                     <Badge variant="outline" className="rounded-full border-primary/20 text-primary font-black px-3">
                                         {selectedFellowIds.length} Selected
                                     </Badge>

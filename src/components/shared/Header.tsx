@@ -65,12 +65,12 @@ const Header = () => {
             <Link href="/login">Log In</Link>
           </Button>
           <a
-            
+            href="https://icapital-group-temp.vercel.app/"
             className="bg-primary text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-opacity-90 transition-all shadow-lg hover:shadow-xl hover:scale-105"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Link href="https://icapital-group-temp.vercel.app/">Contact Us</Link>
+            Contact Us
           </a>
           {/* <Button
             asChild

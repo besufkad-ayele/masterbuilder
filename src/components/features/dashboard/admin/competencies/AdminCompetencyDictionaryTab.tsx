@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompetencyDictionary, DictionaryProficiencyLevel } from "@/types";
 import { competencyService } from "@/services/competencyService";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 
 interface AdminCompetencyDictionaryTabProps {
     data: CompetencyDictionary[];
@@ -223,7 +224,7 @@ export default function AdminCompetencyDictionaryTab({ data, onRefresh }: AdminC
                     <div className="space-y-6 py-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-semibold text-primary">Competency Name</label>
+                                <label className="text-sm font-semibold text-primary">Competency Name<RequiredMark className="ml-0.5" /></label>
                                 <Input
                                     placeholder="e.g. C1 - EMOTIONAL INTELLIGENCE"
                                     value={formState.name}

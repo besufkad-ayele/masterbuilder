@@ -264,20 +264,20 @@ export default function CohortCreationForm({ onCohortCreated }: CohortCreationFo
                     Create New Cohort
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] overflow-y-auto rounded-[2.5rem] bg-stone-50 border-none shadow-2xl p-0">
-                <div className="flex h-full min-h-[700px]">
+            <DialogContent className="max-w-[calc(100vw-1rem)] w-full sm:max-w-[95vw] sm:w-[1200px] max-h-[90vh] overflow-y-auto rounded-2xl sm:rounded-[2.5rem] bg-stone-50 border-none shadow-2xl p-0">
+                <div className="flex h-full min-h-0 flex-col lg:min-h-[700px] lg:flex-row">
 
                     {/* Sidebar: Navigation & Config */}
-                    <div className="w-1/4 bg-stone-100/50 border-r border-stone-200 p-8 space-y-8 flex flex-col">
+                    <div className="w-full lg:w-1/4 bg-stone-100/50 border-b lg:border-b-0 lg:border-r border-stone-200 p-5 sm:p-8 space-y-6 sm:space-y-8 flex flex-col">
                         <div>
-                            <h2 className="text-2xl font-serif font-bold text-stone-800">New Cohort</h2>
+                            <DialogTitle className="text-2xl font-serif font-bold text-stone-800">New Cohort</DialogTitle>
                             <p className="text-stone-500 text-sm mt-1 italic font-serif">Configure organizational learning track</p>
                         </div>
 
                         <div className="space-y-6 flex-1">
                             {/* Partner Organization */}
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">Partner Organization</Label>
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]" required>Partner Organization</Label>
                                 <Select value={formData.companyId} onValueChange={v => setFormData(f => ({ ...f, companyId: v, fellowIds: [] }))}>
                                     <SelectTrigger className="h-12 rounded-2xl bg-white border-stone-200 shadow-sm">
                                         <SelectValue placeholder="Select Company" />
@@ -292,7 +292,7 @@ export default function CohortCreationForm({ onCohortCreated }: CohortCreationFo
 
                             {/* Cohort Identity */}
                             <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">Cohort Identity</Label>
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]" required>Cohort Identity</Label>
                                 <Input
                                     value={formData.name}
                                     onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
@@ -458,7 +458,7 @@ export default function CohortCreationForm({ onCohortCreated }: CohortCreationFo
                     </div>
 
                     {/* Main Content: Wave Detail & Fellow Selection */}
-                    <div className="flex-1 p-8 overflow-hidden flex flex-col">
+                    <div className="flex-1 p-4 sm:p-8 overflow-hidden flex flex-col">
                         {isLoadingData ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-stone-400">
                                 <Loader2 className="size-10 animate-spin text-primary mb-4" />
@@ -484,7 +484,7 @@ export default function CohortCreationForm({ onCohortCreated }: CohortCreationFo
                                                 <Input
                                                     value={activeWave.name}
                                                     onChange={e => updateWave(activeWaveIndex, { name: e.target.value })}
-                                                    className="text-2xl font-serif font-bold text-[#1B4332] bg-transparent border-0 border-b-2 border-stone-200 focus:border-primary rounded-none px-0 h-auto py-1 shadow-none w-64"
+                                                    className="text-xl sm:text-2xl font-serif font-bold text-[#1B4332] bg-transparent border-0 border-b-2 border-stone-200 focus:border-primary rounded-none px-0 h-auto py-1 shadow-none w-full max-w-64"
                                                 />
                                                 <Badge className={cn(
                                                     "text-[10px] uppercase",
@@ -596,7 +596,7 @@ export default function CohortCreationForm({ onCohortCreated }: CohortCreationFo
                                             </div>
 
                                             {/* Two-column: Competencies | Fellows */}
-                                            <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
+                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 overflow-hidden">
 
                                                 {/* Competency Library */}
                                                 <div className="flex flex-col space-y-4 overflow-hidden">

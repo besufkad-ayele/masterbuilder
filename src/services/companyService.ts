@@ -1,35 +1,22 @@
-import { db, storage } from '@/lib/firebase';
-import {
-    collection,
-    getDocs,
-    getDoc,
-    doc,
-    setDoc,
-    updateDoc,
-    deleteDoc,
-} from 'firebase/firestore';
-import {
-    ref,
-    uploadBytesResumable,
-    getDownloadURL
-} from 'firebase/storage';
 import { Company } from '@/types';
+import { companiesApi, filesApi } from '@/lib/api';
+import { mapCompany, toApiCompany } from '@/lib/api/mappers';
 
 export const companyService = {
     /**
      * Get all companies
      */
     async getAll(): Promise<Company[]> {
-        const snapshot = await getDocs(collection(db, 'companies'));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Company));
+        const data = await companiesApi.getAll() as Record<string, unknown>[];
+        return data.map(mapCompany);
     },
 
     /**
      * Get a single company by ID
      */
     async getById(id: string): Promise<Company | null> {
-        const d = await getDoc(doc(db, 'companies', id));
-        return d.exists() ? { id: d.id, ...d.data() } as Company : null;
+        const data = await companiesApi.getById(id) as Record<string, unknown>;
+        return mapCompany(data);
     },
 
     /**
@@ -43,35 +30,25 @@ export const companyService = {
             .replace(/\s+/g, '-')
             .replace(/[^a-z0-9-]/g, '');
 
-        const now = new Date().toISOString();
-        const fullData: Company = {
-            ...companyData,
-            name: trimmedName,
+        const created = await companiesApi.create({
+            ...toApiCompany({ ...companyData, name: trimmedName }),
             id,
-            created_at: now,
-            updated_at: now
-        };
-
-        await setDoc(doc(db, 'companies', id), fullData);
-        return id;
+        }) as Record<string, unknown>;
+        return String(created.id);
     },
 
     /**
      * Update an existing company
      */
     async update(id: string, companyData: Partial<Company>): Promise<void> {
-        const now = new Date().toISOString();
-        await updateDoc(doc(db, 'companies', id), {
-            ...companyData,
-            updated_at: now
-        });
+        await companiesApi.update(id, toApiCompany(companyData));
     },
 
     /**
      * Delete a company
      */
     async delete(id: string): Promise<void> {
-        await deleteDoc(doc(db, 'companies', id));
+        await companiesApi.delete(id);
     },
 
     /**
@@ -121,7 +98,7 @@ export const companyService = {
                             console.error("Service: toBlob returned null");
                             reject(new Error('Canvas to Blob failed'));
                         }
-                    }, 'image/jpeg', 0.85); // Switched to jpeg for broader support
+                    }, 'image/jpeg', 0.85);
                 };
                 img.onerror = (e) => {
                     console.error("Service: Image load error:", e);
@@ -145,31 +122,9 @@ export const companyService = {
         companyName: string,
         onProgress?: (progress: number) => void
     ): Promise<string> {
-        const slug = companyName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        const fileName = `logos/${slug}-${Date.now()}.webp`;
-        const storageRef = ref(storage, fileName);
-
-        console.log("Starting Firebase Storage upload to:", fileName);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        return new Promise((resolve, reject) => {
-            uploadTask.on(
-                'state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log("Upload progress:", Math.floor(progress), "%");
-                    if (onProgress) onProgress(progress);
-                },
-                (error) => {
-                    console.error("Firebase Storage upload error:", error);
-                    reject(error);
-                },
-                async () => {
-                    console.log("Upload complete, fetching download URL...");
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    resolve(downloadURL);
-                }
-            );
-        });
+        if (onProgress) onProgress(50);
+        const result = await filesApi.upload(file);
+        if (onProgress) onProgress(100);
+        return result.url;
     }
 };

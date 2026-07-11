@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -521,6 +522,7 @@ function PortfolioReviewPanel({
                     <div className="space-y-2">
                         <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary px-1">
                             Performance Score (0-50)
+                            <RequiredMark className="ml-0.5" />
                         </label>
                         <Input
                             type="number"

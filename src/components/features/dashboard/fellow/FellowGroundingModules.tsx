@@ -63,13 +63,13 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-[#1B4332] p-12 text-white shadow-2xl border-4 border-[#C5A059]/20">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-[2.5rem] bg-[#1B4332] p-6 sm:p-12 text-white shadow-2xl border-4 border-[#C5A059]/20">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-6">
             <span className="h-px w-12 bg-[#C5A059]"></span>
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C5A059]">Grounding Module Delivery</span>
           </div>
-          <h1 className="text-5xl font-serif font-bold mb-4 leading-tight">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold mb-4 leading-tight">
             Strategic Context & <br />
             <span className="italic text-[#C5A059]">Internal Domain</span>
           </h1>
@@ -106,7 +106,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
         ) : (
           <div className="group relative bg-white border-2 border-[#E8E4D8] rounded-[3rem] overflow-hidden shadow-sm hover:border-[#C5A059] hover:shadow-2xl transition-all duration-500">
             <div className="grid lg:grid-cols-[1fr_380px] gap-0">
-              <div className="p-12 space-y-10">
+              <div className="p-6 sm:p-12 space-y-6 sm:space-y-10">
                 <div>
                   <div className="flex items-center gap-4 mb-4">
                     <Badge className="bg-[#C5A059] text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border-0">
@@ -124,7 +124,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-12">
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-2xl bg-[#C5A059]/10 flex items-center justify-center">
@@ -156,7 +156,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                 </div>
               </div>
 
-              <div className="bg-[#FDFCF6] border-l-2 border-[#E8E4D8] p-12 flex flex-col justify-center items-center text-center space-y-8 bg-[url('/bg-pattern.png')] bg-opacity-5">
+              <div className="bg-[#FDFCF6] border-t-2 lg:border-t-0 lg:border-l-2 border-[#E8E4D8] p-6 sm:p-12 flex flex-col justify-center items-center text-center space-y-8 bg-[url('/bg-pattern.png')] bg-opacity-5">
                 <div className="relative">
                   <div className={`absolute inset-0 ${hasAssessmentScore ? (isPassed ? 'bg-green-500/20' : 'bg-red-500/20') : 'bg-[#C5A059]/20'} blur-2xl rounded-full scale-150`}></div>
                   <div className={`relative w-32 h-32 rounded-full bg-white border-2 ${hasAssessmentScore ? (isPassed ? 'border-green-500/30' : 'border-red-500/30') : 'border-[#C5A059]/30'} flex flex-col items-center justify-center text-[#1B4332] shadow-xl group-hover:scale-105 transition-transform duration-700`}>

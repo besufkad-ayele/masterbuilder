@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { 
     Users, 
     Network, 
@@ -16,79 +15,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FellowProgressService } from "@/services/FellowProgressService";
-import { FellowService } from "@/services/FellowService";
-import { CoachService } from "@/services/CoachService";
-import { StorageService } from "@/services/storageService";
-import { companyService } from "@/services/companyService";
-import { CohortService } from "@/services/CohortService";
-import { PeerCircle, Company, Cohort, Portfolio, FellowProfile } from "@/types";
+import { useCoachDashboard } from "@/hooks/use-dashboard";
 import { cn } from "@/lib/utils";
 
 export default function CoachDashboardOverview() {
-    const [loading, setLoading] = useState(true);
-    const [circles, setCircles] = useState<PeerCircle[]>([]);
-    const [companies, setCompanies] = useState<Record<string, Company>>({});
-    const [cohorts, setCohorts] = useState<Record<string, Cohort>>({});
-    const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-    const [fellows, setFellows] = useState<FellowProfile[]>([]);
-    const [coachProfile, setCoachProfile] = useState<any>(null);
-
-    useEffect(() => {
-        const fetchDashboardData = async () => {
-            const user = StorageService.getCurrentUser();
-            if (!user || user.role !== 'COACH') return;
-
-            try {
-                const profile = await CoachService.getCoachByUserId(user.id);
-                setCoachProfile(profile);
-
-                if (profile) {
-                    const circleData = await CoachService.getPeerCirclesByCoachId(user.id);
-                    setCircles(circleData);
-
-                    // Fetch company and cohort names
-                    const companyIds = Array.from(new Set(circleData.map((c: PeerCircle) => c.company_id)));
-                    const cohortIds = Array.from(new Set(circleData.map((c: PeerCircle) => c.cohort_id)));
-
-                    const [companyData, cohortData] = await Promise.all([
-                        Promise.all(companyIds.map(id => companyService.getById(id))),
-                        Promise.all(cohortIds.map(id => CohortService.getCohortById(id)))
-                    ]);
-
-                    const companyMap = companyData.reduce((acc: Record<string, Company>, company) => {
-                        if (company) acc[company.id] = company;
-                        return acc;
-                    }, {} as Record<string, Company>);
-
-                    const cohortMap = cohortData.reduce((acc: Record<string, Cohort>, cohort) => {
-                        if (cohort) acc[cohort.id] = cohort;
-                        return acc;
-                    }, {} as Record<string, Cohort>);
-
-                    setCompanies(companyMap);
-                    setCohorts(cohortMap);
-
-                    // Fetch Fellows and Portfolios for smart metrics
-                    const allFellowIds = Array.from(new Set(circleData.flatMap((c: PeerCircle) => c.fellow_ids))) as string[];
-                    if (allFellowIds.length > 0) {
-                        const [fellowData, portfolioData] = await Promise.all([
-                            FellowService.getFellowsByIds(allFellowIds),
-                            FellowProgressService.getPortfoliosByUserIds(allFellowIds)
-                        ]);
-                        setFellows(fellowData);
-                        setPortfolios(portfolioData);
-                    }
-                }
-            } catch (error) {
-                console.error("Error fetching coach dashboard data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchDashboardData();
-    }, []);
+    const { data, peerCircles: circles, companies, cohorts, loading } = useCoachDashboard();
+    const coachProfile = data?.profile;
+    const fellows = data?.fellows ?? [];
+    const portfolios = data?.portfolios ?? [];
 
     if (loading) {
         return (

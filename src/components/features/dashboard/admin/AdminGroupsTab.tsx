@@ -213,15 +213,16 @@ export default function AdminGroupsTab() {
                 </div>
             </div>
 
-            <Card className="rounded-[3rem] border-2 border-[#E8E4D8] overflow-hidden shadow-2xl bg-white">
+            <Card className="rounded-2xl sm:rounded-[3rem] border-2 border-[#E8E4D8] overflow-hidden shadow-2xl bg-white">
                 <CardContent className="p-0">
-                    <Table>
+                    <div className="overflow-x-auto">
+                    <Table className="min-w-[640px]">
                         <TableHeader className="bg-muted/30">
                             <TableRow className="hover:bg-transparent border-b-2 border-[#E8E4D8]/50">
-                                <TableHead className="font-serif font-black px-10 h-20 text-lg">Circle Details</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-lg">Assigned Coach</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-center text-lg">Fellows</TableHead>
-                                <TableHead className="font-serif font-black h-20 text-right px-10 text-lg">Actions</TableHead>
+                                <TableHead className="font-serif font-black px-4 sm:px-10 h-14 sm:h-20 text-sm sm:text-lg">Circle Details</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-sm sm:text-lg">Assigned Coach</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-center text-sm sm:text-lg">Fellows</TableHead>
+                                <TableHead className="font-serif font-black h-14 sm:h-20 text-right px-4 sm:px-10 text-sm sm:text-lg">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -293,6 +294,7 @@ export default function AdminGroupsTab() {
                             ))}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

@@ -137,7 +137,7 @@ export default function CoachCreationForm({ onCoachCreated }: CoachCreationFormP
 
                         <div className="space-y-5">
                             <div className="grid gap-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Full Name</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Full Name</Label>
                                 <Input
                                     value={formData.name}
                                     onChange={e => setFormData({ ...formData, name: e.target.value })}
@@ -147,7 +147,7 @@ export default function CoachCreationForm({ onCoachCreated }: CoachCreationFormP
                             </div>
 
                             <div className="grid gap-2">
-                                <Label className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Email Address</Label>
+                                <Label required className="text-xs font-bold uppercase tracking-wider text-slate-400 ml-1">Email Address</Label>
                                 <Input
                                     type="email"
                                     value={formData.email}

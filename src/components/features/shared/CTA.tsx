@@ -9,20 +9,20 @@ const CTA = () => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <section className="max-w-7xl mx-auto px-6 py-20">
-      <div className="bg-primary rounded-[3rem] p-16 text-center text-white relative overflow-hidden group">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
+      <div className="bg-primary rounded-2xl sm:rounded-[3rem] p-8 sm:p-12 lg:p-16 text-center text-white relative overflow-hidden group">
         {/* Animated background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
         
-        <div className="relative z-10 space-y-8">
-          <h2 className="text-5xl font-display max-w-2xl mx-auto">Ready to build your professional edge?</h2>
-          <p className="text-xl opacity-80 max-w-xl mx-auto">
+        <div className="relative z-10 space-y-6 sm:space-y-8">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display max-w-2xl mx-auto">Ready to build your professional edge?</h2>
+          <p className="text-base sm:text-xl opacity-80 max-w-xl mx-auto">
             Enter the Workplace Success Dashboard and start your first Mastery Cycle today.
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
+          <div className="flex flex-col sm:flex-wrap sm:flex-row justify-center gap-3 sm:gap-4">
             <Button
               asChild
-              className={`${isHovered ? 'bg-accent text-primary' : 'bg-transparent text-accent' } px-10 py-4 rounded-full font-bold hover:scale-105 transition-all duration-300 flex items-center gap-2 shadow-lg `}
+              className={`${isHovered ? 'bg-accent text-primary' : 'bg-transparent text-accent' } w-full sm:w-auto px-8 sm:px-10 py-4 rounded-full font-bold hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2 shadow-lg `}
               onMouseEnter={() => setIsHovered(false)}
               onMouseLeave={() => setIsHovered(false)}
             >
@@ -33,7 +33,7 @@ const CTA = () => {
             <Button
               asChild
               variant="outline"
-              className="bg-white/10 hover:bg-white/20 px-10 py-4 rounded-full font-bold backdrop-blur-sm transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-105"
+              className="w-full sm:w-auto bg-white/10 hover:bg-white/20 px-8 sm:px-10 py-4 rounded-full font-bold backdrop-blur-sm transition-all duration-300 border border-white/10 hover:border-white/20 hover:scale-105"
             >
               <Link href="/login">Log In to Dashboard</Link>
             </Button>

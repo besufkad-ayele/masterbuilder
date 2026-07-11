@@ -26,6 +26,13 @@ export default function AdminDashboardOverview() {
   }
 
   if (error) {
+    if (/unauthorized/i.test(error.message)) {
+      return (
+        <div className="flex h-[400px] w-full items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
     return (
       <div className="flex h-[400px] w-full items-center justify-center text-destructive">
         Error loading dashboard: {error.message}

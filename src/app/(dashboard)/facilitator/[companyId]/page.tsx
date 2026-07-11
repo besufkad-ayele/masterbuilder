@@ -12,8 +12,9 @@ export default function FacilitatorPage() {
 
     React.useEffect(() => {
         const currentUser = StorageService.getCurrentUser();
-        if (!currentUser || currentUser.role !== 'FACILITATOR') {
-            router.push('/login');
+        const token = StorageService.getAuthToken();
+        if (!currentUser || !token || currentUser.role !== 'FACILITATOR') {
+            router.replace('/');
             return;
         }
     }, [router]);

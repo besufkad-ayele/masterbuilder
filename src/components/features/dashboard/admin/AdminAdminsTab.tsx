@@ -40,9 +40,11 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminManagementService } from "@/services/AdminManagementService";
+import { appService } from "@/services/appService";
 import { cn } from "@/lib/utils";
 import UserProfileDetail from "./UserProfileDetail";
 import AdminCreationForm from "./AdminCreationForm";
+import { RequiredMark } from "@/components/ui/label";
 
 // ─── Admin Actions Component ──────────────────────────────────────────────────
 
@@ -156,6 +158,7 @@ function AdminActions({
                         <div className="space-y-1.5 sm:space-y-2">
                             <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.15em] text-primary/60 px-1">
                                 Full Name
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 value={updatedData.name}
@@ -168,6 +171,7 @@ function AdminActions({
                         <div className="space-y-1.5 sm:space-y-2">
                             <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.15em] text-primary/60 px-1">
                                 Institutional Email
+                                <RequiredMark className="ml-0.5" />
                             </label>
                             <Input
                                 value={updatedData.email}
@@ -453,19 +457,13 @@ export default function AdminAdminsTab() {
         try {
             const data = await AdminManagementService.getAllAdmins();
 
-            const { db } = await import("@/lib/firebase");
-            const { getDoc, doc } = await import("firebase/firestore");
-
             const adminsWithInfo = await Promise.all(
                 data.map(async (a) => {
-                    const userSnap = await getDoc(doc(db, "users", a.user_id));
-                    const userData = userSnap.exists()
-                        ? userSnap.data()
-                        : { name: "System Admin", email: "admin@lead-life.com" };
+                    const user = await appService.getUser(a.user_id);
                     return {
                         ...a,
-                        name: userData.name || a.title || "Administrator",
-                        email: userData.email,
+                        name: user?.name || a.title || "Administrator",
+                        email: user?.email || "admin@masterbuilder.com",
                         status: a.is_active ? "Active" : "Inactive",
                         role: a.title || "System Administrator",
                     };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -13,9 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AdminCompanyManager from "../AdminCompanyManager";
 import { Company, FellowProfile, Cohort } from "@/types";
-import { cn } from "@/lib/utils";
 import { useAdminDashboardContext } from "@/context/AdminDashboardContext";
-import { Building2, Users, GraduationCap, MapPin, Globe, Mail, Phone, ExternalLink, UserPlus } from "lucide-react";
+import { Building2, Users, GraduationCap, MapPin, Globe, Mail, Phone, ExternalLink, UserPlus, X } from "lucide-react";
 import FellowCreationForm from "./FellowCreationForm";
 
 function CompanyDetailDialog({
@@ -58,8 +57,7 @@ function CompanyDetailDialog({
         </DialogHeader>
 
         <div className="space-y-8 mt-4">
-          {/* Quick Metrics */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="bg-[#1B4332]/5 border border-[#1B4332]/10 rounded-2xl p-4 text-center">
               <Users className="h-5 w-5 text-[#1B4332] mx-auto mb-2" />
               <div className="text-2xl font-bold text-[#1B4332]">{companyFellows.length}</div>
@@ -77,7 +75,6 @@ function CompanyDetailDialog({
             </div>
           </div>
 
-          {/* Contact & Bio */}
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Communication</h4>
@@ -122,11 +119,10 @@ function CompanyDetailDialog({
             </div>
           </div>
 
-          {/* Subsidiaries */}
           {company.subsidiaries && company.subsidiaries.length > 0 && (
             <div className="space-y-4">
               <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Subsidiaries / Departments ({company.subsidiaries.length})</h4>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {company.subsidiaries.map((sub) => (
                   <div key={sub.id} className="p-3 rounded-xl border border-border bg-muted/30 flex items-center justify-between">
                     <span className="font-medium text-sm">{sub.name}</span>
@@ -137,13 +133,12 @@ function CompanyDetailDialog({
             </div>
           )}
 
-          {/* Active Cohorts */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Active Cohorts ({companyCohorts.length})</h4>
               <FellowCreationForm
                 initialCompanyId={company.id}
-                onFellowCreated={() => { }} // Could refresh context if needed
+                onFellowCreated={() => { }}
                 trigger={
                   <Button size="sm" variant="outline" className="h-8 rounded-lg gap-2 border-primary/20 text-primary hover:bg-primary/5">
                     <UserPlus className="h-3.5 w-3.5" />
@@ -176,8 +171,9 @@ function CompanyDetailDialog({
 }
 
 export default function AdminCompaniesTab() {
-  const { data, loading } = useAdminDashboardContext();
+  const { data } = useAdminDashboardContext();
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const contextCardRef = useRef<HTMLDivElement>(null);
 
   const stats = useMemo(() => {
     if (!data) return { companies: 0, fellows: 0, cohorts: 0 };
@@ -188,12 +184,32 @@ export default function AdminCompaniesTab() {
     };
   }, [data]);
 
+  const handleCompanySelect = (company: Company | null) => {
+    setSelectedCompany((current) => {
+      if (company && current?.id === company.id) return current;
+      return company;
+    });
+  };
+
+  useEffect(() => {
+    if (!selectedCompany || !contextCardRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      contextCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedCompany?.id]);
+
   return (
     <section className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-[0.3em] text-[#1B4332] font-bold">Organization Ecosystem</p>
-          <h1 className="text-4xl font-display text-foreground tracking-tight">Partners & Governance</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-display text-foreground tracking-tight">Partners & Governance</h1>
           <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
             Architecting the growth of your corporate partners. Manage company profiles, verify legal hierarchies, and monitor cohort distribution.
           </p>
@@ -211,9 +227,8 @@ export default function AdminCompaniesTab() {
         </div>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[1fr_380px] lg:grid-cols-1">
-        {/* Company Management - Left Side */}
-        <Card className="bg-card border-border shadow-sm rounded-3xl overflow-hidden">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
+        <Card className="bg-card border-border shadow-sm rounded-3xl overflow-hidden order-2 lg:order-1">
           <CardHeader className="pb-0 border-b border-border bg-muted/10">
             <div className="flex items-center justify-between py-2">
               <div>
@@ -225,18 +240,41 @@ export default function AdminCompaniesTab() {
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            <AdminCompanyManager onCompanySelect={setSelectedCompany} selectedCompany={selectedCompany} />
+            <AdminCompanyManager
+              onCompanySelect={handleCompanySelect}
+              selectedCompany={selectedCompany}
+            />
           </CardContent>
         </Card>
 
-        {/* Company Detail - Right Side (Sticky) */}
-        <div className="space-y-6">
-          <Card className="bg-card border-border shadow-sm rounded-3xl sticky top-8 overflow-hidden">
+        <div
+          ref={contextCardRef}
+          className={`space-y-6 order-1 lg:order-2 ${selectedCompany ? "block" : "hidden lg:block"}`}
+        >
+          <Card className="bg-card border-border shadow-sm rounded-3xl lg:sticky lg:top-8 overflow-hidden">
             <CardHeader className="bg-muted/10 border-b border-border">
-              <CardTitle className="text-lg font-display text-[#1B4332]">Operational Context</CardTitle>
-              <CardDescription>
-                Detailed overview of selected partner.
-              </CardDescription>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg font-display text-[#1B4332]">Operational Context</CardTitle>
+                  <CardDescription>
+                    {selectedCompany
+                      ? "Detailed overview of selected partner."
+                      : "Select a partner from the index to view its operational blueprint."}
+                  </CardDescription>
+                </div>
+                {selectedCompany && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 shrink-0 rounded-lg text-muted-foreground"
+                    onClick={() => setSelectedCompany(null)}
+                    aria-label="Clear company selection"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-6">
               {selectedCompany ? (
@@ -313,5 +351,3 @@ export default function AdminCompaniesTab() {
     </section>
   );
 }
-
-

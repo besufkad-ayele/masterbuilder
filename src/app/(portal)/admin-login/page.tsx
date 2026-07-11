@@ -7,12 +7,9 @@ import { ArrowLeft, ShieldCheck, Lock, Mail, ChevronRight, Eye, EyeOff } from "l
 import { Manrope } from "next/font/google";
 
 import { cn } from "@/lib/utils";
+import { RequiredMark } from "@/components/ui/label";
 import BrandLogo from "@/components/features/shared/BrandLogo";
-import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { StorageService } from "@/services/storageService";
-import { User } from "@/types";
+import { loginWithApi, routeAfterApiLogin } from "@/lib/auth/api-login";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -33,40 +30,15 @@ export default function AdminLoginPage() {
     setError("");
 
     try {
-      // 1. Sign in with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const user = userCredential.user;
-
-      // 2. Fetch User Profile from Firestore to verify ADMIN role
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-
-      if (!userDoc.exists()) {
-        setError("Administrative profile not found.");
-        setLoading(false);
+      const result = await loginWithApi(email.trim(), password, 'ADMIN');
+      if (!result.ok) {
+        setError(result.message);
         return;
       }
-
-      const profile = userDoc.data() as User;
-
-      if (profile.role !== "ADMIN") {
-        setError("Access denied. This portal is restricted to administrators.");
-        setLoading(false);
-        await auth.signOut();
-        return;
-      }
-
-      // 3. Sync to StorageService
-      StorageService.setCurrentUser(profile);
-
-      // 4. Redirect to Admin Dashboard
-      router.push("/admin");
-    } catch (err: any) {
+      routeAfterApiLogin(router, result.rawUser);
+    } catch (err: unknown) {
       console.error("Admin login error:", err);
-      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-        setError("Invalid administrative credentials.");
-      } else {
-        setError("An error occurred during authentication. Please try again.");
-      }
+      setError("An error occurred during authentication. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -108,6 +80,7 @@ export default function AdminLoginPage() {
               <label className="text-[#1B4332] text-[10px] font-bold uppercase tracking-[0.2em] pl-1 flex items-center gap-2" htmlFor="email">
                 <Mail className="size-3 text-[#1B4332]/40" />
                 Admin Email
+                <RequiredMark className="ml-0.5" />
               </label>
               <input
                 className="flex w-full rounded-2xl bg-[#FDFCF6] border border-[#E8E4D8] focus:border-[#1B4332] focus:ring-4 focus:ring-[#1B4332]/5 h-16 placeholder:text-slate-300 p-6 text-base transition-all outline-none font-medium"
@@ -129,6 +102,7 @@ export default function AdminLoginPage() {
               <label className="text-[#1B4332] text-[10px] font-bold uppercase tracking-[0.2em] pl-1 flex items-center gap-2" htmlFor="password">
                 <Lock className="size-3 text-[#1B4332]/40" />
                 Secret Key
+                <RequiredMark className="ml-0.5" />
               </label>
               <div className="relative group/pass">
                 <input
