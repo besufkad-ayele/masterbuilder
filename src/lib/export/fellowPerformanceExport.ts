@@ -1,5 +1,9 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import type { ExamAttempt } from "@/services/ExamService";
+import {
+    buildCompetencyPerformance,
+    resolveCompetencyBiIds,
+} from "@/services/FellowProgressService";
 import type {
     BehavioralIndicator,
     Competency,
@@ -7,6 +11,8 @@ import type {
     GroundingResult,
     PhaseProgress,
     Portfolio,
+    Wave,
+    WaveCompetency,
 } from "@/types";
 import { createBarChartImage, createDoughnutChartImage } from "./chartImage";
 
@@ -17,7 +23,7 @@ export type FellowExportRow = {
     Believe: "Pass" | "Failed";
     "Know (20%)": number;
     "Do (50%)": number;
-    "Final Assesment (20%)": number;
+    "Final Assessment (20%)": number;
     "Total (100%)": number;
 };
 
@@ -34,6 +40,12 @@ export type CompetencyExportReport = {
     rows: FellowExportRow[];
 };
 
+export type WaveDashboardBundle = {
+    wave: Wave;
+    fellowCount: number;
+    reports: CompetencyExportReport[];
+};
+
 const EXPORT_COLUMNS: (keyof FellowExportRow)[] = [
     "Fellow ID",
     "Full Name",
@@ -41,7 +53,7 @@ const EXPORT_COLUMNS: (keyof FellowExportRow)[] = [
     "Believe",
     "Know (20%)",
     "Do (50%)",
-    "Final Assesment (20%)",
+    "Final Assessment (20%)",
     "Total (100%)",
 ];
 
@@ -80,9 +92,22 @@ type DashboardSection = {
     chart?: DashboardChart;
 };
 
+type ExcelJSModule = {
+    Workbook: new () => ExcelJS.Workbook;
+};
+
 function average(values: number[]): number {
     if (values.length === 0) return 0;
     return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+async function loadExcelJS(): Promise<ExcelJSModule> {
+    const mod = await import("exceljs");
+    const resolved = (mod as { default?: ExcelJSModule } & ExcelJSModule).default ?? mod;
+    if (!resolved?.Workbook) {
+        throw new Error("ExcelJS failed to load in this browser.");
+    }
+    return resolved;
 }
 
 function buildFellowAverageTotals(
@@ -112,21 +137,25 @@ function buildFellowAverageTotals(
 function buildDashboardSections({
     fellowCount,
     reports,
+    scopeLabel = "program",
 }: {
     fellowCount: number;
     reports: CompetencyExportReport[];
+    scopeLabel?: string;
 }): DashboardSection[] {
     const allRows = reports.flatMap((report) => report.rows);
     const believePassCount = allRows.filter((row) => row.Believe === "Pass").length;
     const believePassRate =
         allRows.length > 0 ? Math.round((believePassCount / allRows.length) * 100) : 0;
     const avgTotal = average(allRows.map((row) => row["Total (100%)"]));
+    const snapshotTitle =
+        scopeLabel === "program" ? "Program Snapshot" : "Wave Snapshot";
 
     const componentAverages = {
         grounding: average(allRows.map((row) => row["Grounding (10%)"])),
         know: average(allRows.map((row) => row["Know (20%)"])),
         do: average(allRows.map((row) => row["Do (50%)"])),
-        final: average(allRows.map((row) => row["Final Assesment (20%)"])),
+        final: average(allRows.map((row) => row["Final Assessment (20%)"])),
     };
 
     const fellowAverages = Array.from(buildFellowAverageTotals(reports).values());
@@ -154,8 +183,8 @@ function buildDashboardSections({
 
     return [
         {
-            title: "Program Snapshot",
-            note: "Overview of cohort size and headline performance indicators across all fellow-competency records.",
+            title: snapshotTitle,
+            note: `Overview of ${scopeLabel} size and headline performance indicators across fellow-competency records in this scope.`,
             headers: ["Metric", "Value"],
             rows: [
                 ["Total Fellows", fellowCount],
@@ -166,7 +195,7 @@ function buildDashboardSections({
             ],
             chart: {
                 kind: "bar",
-                title: "Program Snapshot",
+                title: snapshotTitle,
                 labels: ["Avg Total Score", "Believe Pass Rate"],
                 values: [avgTotal, believePassRate],
                 maxValue: 100,
@@ -180,7 +209,7 @@ function buildDashboardSections({
                 ["Grounding (10%)", componentAverages.grounding, 10],
                 ["Know (20%)", componentAverages.know, 20],
                 ["Do (50%)", componentAverages.do, 50],
-                ["Final Assesment (20%)", componentAverages.final, 20],
+                ["Final Assessment (20%)", componentAverages.final, 20],
             ],
             chart: {
                 kind: "bar",
@@ -197,7 +226,7 @@ function buildDashboardSections({
         },
         {
             title: "Competency Performance Overview",
-            note: "Compares average total score for each competency across all fellows in the cohort.",
+            note: `Compares average total score for each competency across fellows in this ${scopeLabel}.`,
             headers: ["Competency", "Avg Total", "Believe Pass %"],
             rows: reports.map((report) => {
                 const competencyRows = report.rows;
@@ -248,7 +277,7 @@ function buildDashboardSections({
         },
         {
             title: "Top Fellows by Average Total Score",
-            note: "Horizontal bar chart ranking the top 10 fellows based on their average total score across all competency sheets.",
+            note: `Horizontal bar chart ranking the top 10 fellows based on their average total score across competencies in this ${scopeLabel}.`,
             headers: ["Rank", "Fellow ID", "Full Name", "Average Total"],
             rows: topFellows.map((entry, index) => [
                 index + 1,
@@ -337,12 +366,83 @@ async function addChartToSheet(
     return chart.kind === "bar" && chart.horizontal ? 24 : 22;
 }
 
+function formatWaveLabel(wave: Wave): string {
+    const number = wave.number ?? 0;
+    const name = wave.name?.trim();
+    if (name) {
+        return name.toLowerCase().startsWith("wave")
+            ? name
+            : `Wave ${number}: ${name}`;
+    }
+    return `Wave ${number}`;
+}
+
+export function buildWaveDashboardBundles({
+    waves,
+    waveCompetencies,
+    fellowReports,
+    competencies,
+    behavioralIndicators,
+}: {
+    waves: Wave[];
+    waveCompetencies: WaveCompetency[];
+    fellowReports: FellowReportData[];
+    competencies: Competency[];
+    behavioralIndicators: BehavioralIndicator[];
+}): WaveDashboardBundle[] {
+    const competencyById = new Map(competencies.map((competency) => [competency.id, competency]));
+
+    return [...waves]
+        .sort((a, b) => {
+            if (a.cohort_id !== b.cohort_id) {
+                return a.cohort_id.localeCompare(b.cohort_id);
+            }
+            return (a.number ?? 0) - (b.number ?? 0);
+        })
+        .map((wave) => {
+            const waveCompetencyIds = new Set(
+                waveCompetencies
+                    .filter((link) => link.wave_id === wave.id)
+                    .map((link) => link.competency_id)
+            );
+            const waveCompetencyList = Array.from(waveCompetencyIds)
+                .map((id) => competencyById.get(id))
+                .filter((competency): competency is Competency => !!competency);
+
+            const waveFellowReports = fellowReports.filter(
+                (report) => report.fellow.cohort_id === wave.cohort_id
+            );
+
+            const reports = buildCompetencyExportReports({
+                competencies: waveCompetencyList,
+                behavioralIndicators,
+                fellowReports: waveFellowReports,
+            });
+
+            return {
+                wave,
+                fellowCount: waveFellowReports.length,
+                reports,
+            };
+        })
+        .filter((bundle) => bundle.reports.length > 0);
+}
+
 async function buildDashboardSheet(
     workbook: ExcelJS.Workbook,
     exportDate: string,
-    sections: DashboardSection[]
+    sections: DashboardSection[],
+    {
+        sheetName,
+        title,
+        usedNames,
+    }: {
+        sheetName: string;
+        title: string;
+        usedNames: Set<string>;
+    }
 ) {
-    const sheet = workbook.addWorksheet("Dashboard", {
+    const sheet = workbook.addWorksheet(uniqueSheetName(sheetName, usedNames), {
         views: [{ showGridLines: false }],
     });
 
@@ -359,7 +459,7 @@ async function buildDashboardSheet(
 
     sheet.mergeCells(currentRow, 1, currentRow, 6);
     const titleCell = sheet.getCell(currentRow, 1);
-    titleCell.value = "Fellowship Performance Dashboard";
+    titleCell.value = title;
     titleCell.font = { bold: true, size: 18, color: { argb: BRAND_GREEN } };
     titleCell.alignment = { vertical: "middle" };
     currentRow += 1;
@@ -375,7 +475,6 @@ async function buildDashboardSheet(
         const sectionCell = sheet.getCell(currentRow, 1);
         sectionCell.value = section.title;
         sectionCell.font = { bold: true, size: 14, color: { argb: BRAND_GREEN } };
-        sectionCell.note = section.note;
         currentRow += 1;
 
         sheet.mergeCells(currentRow, 1, currentRow, 6);
@@ -401,13 +500,23 @@ async function buildDashboardSheet(
 
         if (section.chart) {
             currentRow += 1;
-            const chartRowSpan = await addChartToSheet(
-                workbook,
-                sheet,
-                section.chart,
-                currentRow
-            );
-            currentRow += chartRowSpan;
+            try {
+                const chartRowSpan = await addChartToSheet(
+                    workbook,
+                    sheet,
+                    section.chart,
+                    currentRow
+                );
+                currentRow += chartRowSpan;
+            } catch (error) {
+                console.warn("Skipping dashboard chart:", section.chart.title, error);
+                sheet.getCell(currentRow, 1).value = "(Chart could not be generated)";
+                sheet.getCell(currentRow, 1).font = {
+                    italic: true,
+                    color: { argb: NOTE_GRAY },
+                };
+                currentRow += 2;
+            }
         }
 
         currentRow += 2;
@@ -416,59 +525,53 @@ async function buildDashboardSheet(
 
 export function buildFellowExportRow({
     fellow,
-    competencyBiIds,
+    competency,
     progress,
     portfolios,
     groundingResults,
-    finalAssessmentScore,
+    examAttempts,
+    behavioralIndicators,
 }: {
     fellow: FellowProfile;
-    competencyBiIds: string[];
+    competency: Competency;
     progress: PhaseProgress[];
     portfolios: Portfolio[];
     groundingResults: GroundingResult[];
-    finalAssessmentScore: number;
+    examAttempts: ExamAttempt[];
+    behavioralIndicators: BehavioralIndicator[];
 }): FellowExportRow {
-    const biMetrics = competencyBiIds.map((biId) => {
-        const biProgress = progress.filter((p) => p.behavioral_indicator_id === biId);
-        const believePhase = biProgress.find((p) => p.phase_type === "believe");
-        const knowPhase = biProgress.find((p) => p.phase_type === "know");
-        const approvedPortfolio = portfolios.find(
-            (p) => p.behavioral_indicator_id === biId && p.status === "approved"
-        );
-
-        return {
-            believePassed: !!believePhase?.believe_passed,
-            knowContribution: Math.round(((knowPhase?.know_score || 0) / 100) * 20),
-            doContribution: Math.round(approvedPortfolio?.score || 0),
-        };
+    const groundingScore = Math.round(groundingResults[0]?.score || 0);
+    const performance = buildCompetencyPerformance(competency, {
+        progress,
+        portfolios,
+        behavioralIndicators,
+        examAttempts,
+        groundingScoreOutOf10: groundingScore,
     });
 
-    const groundingScore = Math.round(groundingResults[0]?.score || 0);
     const knowScore =
-        biMetrics.length > 0
-            ? average(biMetrics.map((metric) => metric.knowContribution))
+        performance.biBreakdown.length > 0
+            ? average(performance.biBreakdown.map((metric) => metric.knowContribution))
             : 0;
     const doScore =
-        biMetrics.length > 0
-            ? average(biMetrics.map((metric) => metric.doContribution))
+        performance.biBreakdown.length > 0
+            ? average(performance.biBreakdown.map((metric) => metric.doContribution))
             : 0;
     const believeStatus =
-        biMetrics.length > 0 && biMetrics.every((metric) => metric.believePassed)
+        performance.biBreakdown.length > 0 &&
+        performance.biBreakdown.every((metric) => metric.believePassed)
             ? "Pass"
             : "Failed";
-    const finalAssessment = Math.round(finalAssessmentScore);
-    const total = Math.round(groundingScore + knowScore + doScore + finalAssessment);
 
     return {
         "Fellow ID": fellow.fellow_id || "",
         "Full Name": fellow.full_name || "",
-        "Grounding (10%)": groundingScore,
+        "Grounding (10%)": performance.groundingContribution,
         Believe: believeStatus,
         "Know (20%)": knowScore,
         "Do (50%)": doScore,
-        "Final Assesment (20%)": finalAssessment,
-        "Total (100%)": total,
+        "Final Assessment (20%)": performance.examContribution,
+        "Total (100%)": performance.compositeScore,
     };
 }
 
@@ -481,42 +584,33 @@ export function buildCompetencyExportReports({
     behavioralIndicators: BehavioralIndicator[];
     fellowReports: FellowReportData[];
 }): CompetencyExportReport[] {
-    const competencyBIMap = new Map<string, string[]>();
-
-    competencies.forEach((competency) => {
-        const biIds = behavioralIndicators
-            .filter((bi) => bi.competency_id === competency.id)
-            .map((bi) => bi.id);
-        if (biIds.length > 0) {
-            competencyBIMap.set(competency.id, biIds);
-        }
-    });
-
     return competencies
         .map((competency) => {
-            const competencyBiIds = competencyBIMap.get(competency.id);
-            if (!competencyBiIds || competencyBiIds.length === 0) return null;
+            const hasIndicators =
+                resolveCompetencyBiIds(competency.id, [], behavioralIndicators).length >
+                    0 ||
+                fellowReports.some(
+                    (report) =>
+                        resolveCompetencyBiIds(
+                            competency.id,
+                            report.progress,
+                            behavioralIndicators
+                        ).length > 0
+                );
+
+            if (!hasIndicators) return null;
 
             const rows = fellowReports.map(
-                ({ fellow, progress, portfolios, groundingResults, examAttempts }) => {
-                    const competencyExamScores = examAttempts
-                        .filter((attempt) => attempt.exam_id === competency.id)
-                        .map((attempt) => attempt.score || 0);
-                    const finalAssessmentScore =
-                        competencyExamScores.length > 0
-                            ? competencyExamScores.reduce((sum, score) => sum + score / 5, 0) /
-                              competencyExamScores.length
-                            : 0;
-
-                    return buildFellowExportRow({
+                ({ fellow, progress, portfolios, groundingResults, examAttempts }) =>
+                    buildFellowExportRow({
                         fellow,
-                        competencyBiIds,
+                        competency,
                         progress,
                         portfolios,
                         groundingResults,
-                        finalAssessmentScore,
-                    });
-                }
+                        examAttempts,
+                        behavioralIndicators,
+                    })
             );
 
             return { competency, rows };
@@ -528,8 +622,35 @@ export function sanitizeSheetName(name: string): string {
     return name.replace(/[\[\]\*\/\\\?:]/g, "").slice(0, 31) || "Competency";
 }
 
-function addCompetencySheet(workbook: ExcelJS.Workbook, report: CompetencyExportReport) {
-    const sheet = workbook.addWorksheet(sanitizeSheetName(report.competency.title));
+export function uniqueSheetName(name: string, usedNames: Set<string>): string {
+    const base = sanitizeSheetName(name);
+    if (!usedNames.has(base.toLowerCase())) {
+        usedNames.add(base.toLowerCase());
+        return base;
+    }
+
+    let index = 2;
+    while (index < 1000) {
+        const suffix = ` (${index})`;
+        const truncated = `${base.slice(0, Math.max(1, 31 - suffix.length))}${suffix}`;
+        if (!usedNames.has(truncated.toLowerCase())) {
+            usedNames.add(truncated.toLowerCase());
+            return truncated;
+        }
+        index += 1;
+    }
+
+    const fallback = `Sheet ${usedNames.size + 1}`.slice(0, 31);
+    usedNames.add(fallback.toLowerCase());
+    return fallback;
+}
+
+function addCompetencySheet(
+    workbook: ExcelJS.Workbook,
+    report: CompetencyExportReport,
+    usedNames: Set<string>
+) {
+    const sheet = workbook.addWorksheet(uniqueSheetName(report.competency.title, usedNames));
 
     sheet.columns = EXPORT_COLUMNS.map((column) => ({
         header: column,
@@ -552,14 +673,22 @@ function addCompetencySheet(workbook: ExcelJS.Workbook, report: CompetencyExport
 
 async function downloadWorkbook(workbook: ExcelJS.Workbook, fileName: string) {
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
+    const bytes =
+        buffer instanceof ArrayBuffer
+            ? new Uint8Array(buffer)
+            : new Uint8Array(buffer as ArrayLike<number>);
+
+    const blob = new Blob([bytes], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = fileName;
+    link.download = fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`;
+    link.style.display = "none";
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
 }
 
@@ -568,35 +697,81 @@ export async function exportFellowsPerformanceWorkbook({
     competencies,
     behavioralIndicators,
     fileName,
+    waves = [],
+    waveCompetencies = [],
 }: {
     fellowReports: FellowReportData[];
     competencies: Competency[];
     behavioralIndicators: BehavioralIndicator[];
     fileName: string;
+    waves?: Wave[];
+    waveCompetencies?: WaveCompetency[];
 }): Promise<void> {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+        throw new Error("Excel export is only available in the browser.");
+    }
+
     const reports = buildCompetencyExportReports({
         competencies,
         behavioralIndicators,
         fellowReports,
     });
 
-    const workbook = new ExcelJS.Workbook();
+    const waveBundles = buildWaveDashboardBundles({
+        waves,
+        waveCompetencies,
+        fellowReports,
+        competencies,
+        behavioralIndicators,
+    });
+
+    const { Workbook } = await loadExcelJS();
+    const workbook = new Workbook();
     workbook.creator = "Masterbuilder Admin";
     workbook.created = new Date();
 
-    const sections = buildDashboardSections({
-        fellowCount: fellowReports.length,
-        reports,
-    });
+    const usedNames = new Set<string>();
+    const exportDate = new Date().toLocaleString();
 
-    await buildDashboardSheet(workbook, new Date().toLocaleString(), sections);
+    await buildDashboardSheet(
+        workbook,
+        exportDate,
+        buildDashboardSections({
+            fellowCount: fellowReports.length,
+            reports,
+            scopeLabel: "program",
+        }),
+        {
+            sheetName: "Dashboard",
+            title: "Fellowship Performance Dashboard",
+            usedNames,
+        }
+    );
+
+    for (const bundle of waveBundles) {
+        const waveLabel = formatWaveLabel(bundle.wave);
+        await buildDashboardSheet(
+            workbook,
+            exportDate,
+            buildDashboardSections({
+                fellowCount: bundle.fellowCount,
+                reports: bundle.reports,
+                scopeLabel: "wave",
+            }),
+            {
+                sheetName: `${waveLabel} Dashboard`,
+                title: `${waveLabel} — Performance Dashboard`,
+                usedNames,
+            }
+        );
+    }
 
     reports.forEach((report) => {
-        addCompetencySheet(workbook, report);
+        addCompetencySheet(workbook, report, usedNames);
     });
 
-    if (reports.length === 0) {
-        workbook.addWorksheet("Report");
+    if (reports.length === 0 && waveBundles.length === 0) {
+        workbook.addWorksheet(uniqueSheetName("Report", usedNames));
     }
 
     await downloadWorkbook(workbook, fileName);

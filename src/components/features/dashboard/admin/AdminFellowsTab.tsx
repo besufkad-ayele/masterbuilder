@@ -366,9 +366,17 @@ export default function AdminFellowsTab() {
         setIsExporting(true);
 
         try {
-            const [competencies, behavioralIndicators, fellowReports] = await Promise.all([
+            const [
+                competencies,
+                behavioralIndicators,
+                waves,
+                waveCompetencies,
+                fellowReports,
+            ] = await Promise.all([
                 FellowProgressService.getAllCompetencies(),
                 FellowProgressService.getAllBehavioralIndicators(),
+                FellowProgressService.getAllWaves(),
+                FellowProgressService.getAllWaveCompetencies(),
                 Promise.all(
                     fellows.map(async (fellow) => {
                         const [progress, portfolios, groundingResults, examAttempts] = await Promise.all([
@@ -387,10 +395,17 @@ export default function AdminFellowsTab() {
                 fellowReports,
                 competencies,
                 behavioralIndicators,
+                waves,
+                waveCompetencies,
                 fileName: `admin-fellows-performance-${new Date().toISOString().slice(0, 10)}.xlsx`,
             });
         } catch (error) {
             console.error("Failed to export fellows report:", error);
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to export fellows report. Please try again."
+            );
         } finally {
             setIsExporting(false);
         }

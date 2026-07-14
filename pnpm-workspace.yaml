@@ -1,0 +1,10 @@
+allowBuilds:
+  '@firebase/util': true
+  '@prisma/client': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  re2: true
+  sharp: true
+  unrs-resolver: true
