@@ -36,6 +36,9 @@ interface FellowDashboardProps {
   fellowId: string;
 }
 
+/** Flip to true when fellow performance results should be visible again. */
+const SHOW_PERFORMANCE_RESULTS = false;
+
 const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
   const router = useRouter();
   const { data: fellowState, loading, error } = useFellowDashboard(fellowId);
@@ -363,11 +366,30 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
             <NotificationScroller notifications={fellowState.notifications || []} />
           </div>
         </div>
-      ) : (
+      ) : SHOW_PERFORMANCE_RESULTS ? (
         <PerformanceView
           waves={wavesWithCompetencies}
           groundingScore={groundingScore}
         />
+      ) : (
+        <Card className="rounded-[2.5rem] border-[#E8E4D8] bg-white shadow-lg overflow-hidden animate-in fade-in slide-in-from-right-6 duration-700">
+          <CardContent className="p-12 md:p-16 flex flex-col items-center text-center gap-5">
+            <div className="size-16 rounded-2xl bg-[#1B4332]/5 text-[#C5A059] flex items-center justify-center">
+              <ShieldCheck className="size-8" />
+            </div>
+            <div className="space-y-2 max-w-md">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#C5A059]">
+                Performance
+              </p>
+              <h3 className="text-3xl font-serif italic text-[#1B4332]">
+                Result under review
+              </h3>
+              <p className="text-sm text-[#1B4332]/60 leading-relaxed">
+                Your performance results are currently being reviewed. Check back once the review is complete.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
