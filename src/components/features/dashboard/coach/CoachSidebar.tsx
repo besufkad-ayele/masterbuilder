@@ -8,6 +8,8 @@ import { ChevronRight, LayoutDashboard, LogOut, Menu } from "lucide-react"
 import { COACH_TABS, getCoachTab } from "./coachTabs"
 import { cn } from "@/lib/utils"
 import { StorageService } from "@/services/storageService"
+import { auth } from "@/lib/firebase"
+import { signOut } from "firebase/auth"
 
 interface CoachSidebarProps {
   children: ReactNode
@@ -31,7 +33,12 @@ export default function CoachSidebar({ children }: CoachSidebarProps) {
     }
   }, []);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Failed to sign out of Firebase Auth:", error);
+    }
     StorageService.clearSession();
     router.push("/login");
   };

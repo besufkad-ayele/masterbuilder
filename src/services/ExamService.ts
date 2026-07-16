@@ -272,11 +272,11 @@ export const ExamService = {
     async submitExamAttempt(attempt: Omit<ExamAttempt, 'id' | 'submitted_at'>): Promise<string> {
         const attemptRef = doc(collection(db, 'exam_attempts'));
         const now = new Date().toISOString();
-        await setDoc(attemptRef, {
+        await setDoc(attemptRef, stripUndefinedDeep({
             ...attempt,
             id: attemptRef.id,
             submitted_at: now
-        });
+        }));
         return attemptRef.id;
     },
 
@@ -288,10 +288,10 @@ export const ExamService = {
 
     async updateExamAttempt(attemptId: string, updates: Partial<ExamAttempt>): Promise<void> {
         const ref = doc(db, 'exam_attempts', attemptId);
-        await updateDoc(ref, {
+        await updateDoc(ref, stripUndefinedDeep({
             ...updates,
             updated_at: new Date().toISOString()
-        });
+        }));
     },
 
     /* ─── Question banks (per cohort + competency) ────────────────────────── */

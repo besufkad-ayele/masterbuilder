@@ -13,6 +13,7 @@ import {
     limit
 } from 'firebase/firestore';
 import { FellowProfile, User } from '@/types';
+import { stripUndefined } from '@/lib/stripUndefined';
 
 export const FellowService = {
     /**
@@ -83,13 +84,13 @@ export const FellowService = {
         const fellowsRef = collection(db, 'fellow_profiles');
         const newDocRef = doc(fellowsRef);
 
-        const data = {
+        const data = stripUndefined({
             ...profileData,
             id: newDocRef.id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             status: profileData.status || 'Onboarding'
-        } as FellowProfile;
+        } as Record<string, unknown>);
 
         await setDoc(newDocRef, data);
         return newDocRef.id;
@@ -124,10 +125,13 @@ export const FellowService = {
 
         // 2. Update Firestore profile
         const fellowRef = doc(db, 'fellow_profiles', id);
-        await updateDoc(fellowRef, {
-            ...updates,
-            updated_at: new Date().toISOString()
-        });
+        await updateDoc(
+            fellowRef,
+            stripUndefined({
+                ...updates,
+                updated_at: new Date().toISOString()
+            } as Record<string, unknown>)
+        );
     },
 
     /**

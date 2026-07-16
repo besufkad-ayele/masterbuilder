@@ -30,6 +30,9 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import ProfileModal from './ProfileModal';
 import dynamic from 'next/dynamic';
+import { StorageService } from '@/services/storageService';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 
 const FacilitatorOverviewTab = dynamic(() => import('./FacilitatorOverviewTab'), { ssr: false });
 const FacilitatorCohortsTab = dynamic(() => import('./FacilitatorCohortsTab'), { ssr: false });
@@ -48,9 +51,13 @@ const FacilitatorDashboardLayout: React.FC<FacilitatorDashboardLayoutProps> = ({
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-    const handleLogout = () => {
-        localStorage.removeItem('authToken');
-        sessionStorage.removeItem('authToken');
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+        } catch (logoutError) {
+            console.error('Failed to sign out of Firebase Auth:', logoutError);
+        }
+        StorageService.clearSession();
         window.location.href = '/login';
     };
 

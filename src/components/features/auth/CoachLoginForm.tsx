@@ -34,6 +34,7 @@ export default function CoachLoginForm({ onBack }: CoachLoginFormProps) {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
       const user = userCredential.user;
+      await user.getIdToken();
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
 

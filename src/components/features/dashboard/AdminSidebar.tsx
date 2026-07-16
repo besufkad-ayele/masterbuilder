@@ -9,6 +9,8 @@ import { ADMIN_TABS, getAdminTab } from "@/components/features/dashboard/admin/a
 import { getAllowedTabs } from "./admin/permissions"
 import { cn } from "@/lib/utils"
 import { StorageService } from "@/services/storageService"
+import { auth } from "@/lib/firebase"
+import { signOut } from "firebase/auth"
 
 interface AdminSidebarProps {
   children: ReactNode
@@ -27,7 +29,12 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
     setCurrentUser(user);
   }, []);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Failed to sign out of Firebase Auth:", error);
+    }
     StorageService.clearSession();
     router.push("/login");
   };

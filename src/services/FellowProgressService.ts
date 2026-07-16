@@ -15,6 +15,7 @@ import {
     GroundingModule,
 } from '@/types';
 import type { Exam, ExamAttempt } from '@/services/ExamService';
+import { stripUndefined } from '@/lib/stripUndefined';
 
 export interface CompetencyBiBreakdown {
     id: string;
@@ -130,18 +131,24 @@ export const FellowProgressService = {
 
     async updateWaveResult(resultId: string, updates: Partial<WaveResult>): Promise<void> {
         const ref = doc(db, 'wave_results', resultId);
-        await updateDoc(ref, {
-            ...updates,
-            updated_at: new Date().toISOString(),
-        });
+        await updateDoc(
+            ref,
+            stripUndefined({
+                ...updates,
+                updated_at: new Date().toISOString(),
+            } as Record<string, unknown>)
+        );
     },
 
     async updateGroundingResult(resultId: string, updates: Partial<GroundingResult>): Promise<void> {
         const ref = doc(db, 'grounding_results', resultId);
-        await updateDoc(ref, {
-            ...updates,
-            updated_at: new Date().toISOString(),
-        });
+        await updateDoc(
+            ref,
+            stripUndefined({
+                ...updates,
+                updated_at: new Date().toISOString(),
+            } as Record<string, unknown>)
+        );
     },
 
     async getAllBehavioralIndicators(): Promise<BehavioralIndicator[]> {
@@ -241,11 +248,14 @@ export const FellowProgressService = {
         }
     ): Promise<void> {
         const ref = doc(db, 'portfolios', portfolioId);
-        await updateDoc(ref, {
-            ...review,
-            reviewed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-        });
+        await updateDoc(
+            ref,
+            stripUndefined({
+                ...review,
+                reviewed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            } as Record<string, unknown>)
+        );
     },
 
     /**

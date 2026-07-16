@@ -54,6 +54,7 @@ export default function LoginPage() {
 
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), loginPassword);
       const user = userCredential.user;
+      await user.getIdToken();
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
 

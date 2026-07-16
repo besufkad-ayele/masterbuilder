@@ -1600,19 +1600,24 @@ function PerformanceBreakdownView({
         null
     );
     const [isEditingExam, setIsEditingExam] = React.useState(false);
-    const [editExamScore, setEditExamScore] = React.useState(0);
+    const [editExamScore, setEditExamScore] = React.useState("");
     const [isSavingExam, setIsSavingExam] = React.useState(false);
 
-    const handleStartEditExam = (currentScore: number) => {
-        // currentScore is out of 100, convert to out of 20 for editing
-        setEditExamScore(Math.round(currentScore / 5));
+    const handleStartEditExam = (contributionOutOf20: number) => {
+        setEditExamScore(String(contributionOutOf20 ?? 0));
         setIsEditingExam(true);
     };
 
     const handleSaveExam = async (compId: string) => {
+        const parsed = editExamScore.trim() === "" ? 0 : Number(editExamScore);
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed > 20) {
+            alert("Enter a final exam contribution between 0 and 20.");
+            return;
+        }
+
         setIsSavingExam(true);
         try {
-            await onUpdateCompExamScore(compId, editExamScore);
+            await onUpdateCompExamScore(compId, Math.round(parsed));
             setIsEditingExam(false);
         } finally {
             setIsSavingExam(false);
@@ -1640,6 +1645,7 @@ function PerformanceBreakdownView({
                     examScore: performance.examScore,
                     examContribution: performance.examContribution,
                     groundingContribution: performance.groundingContribution,
+                    hasExamAttempt: performance.hasExamAttempt,
                     biBreakdown: performance.biBreakdown,
                 };
             })
@@ -1945,11 +1951,15 @@ function PerformanceBreakdownView({
                                             <div className="relative">
                                                 <Input
                                                     type="number"
-                                                    min="0"
-                                                    max="20"
+                                                    inputMode="numeric"
+                                                    min={0}
+                                                    max={20}
+                                                    step={1}
                                                     value={editExamScore}
-                                                    onChange={(e) => setEditExamScore(Number(e.target.value))}
+                                                    onChange={(e) => setEditExamScore(e.target.value)}
+                                                    onFocus={(e) => e.target.select()}
                                                     className="w-24 h-8 rounded-lg pr-8"
+                                                    autoFocus
                                                 />
                                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-black">/20</span>
                                             </div>
@@ -1973,12 +1983,16 @@ function PerformanceBreakdownView({
                                     ) : (
                                         <div className="flex items-center gap-2">
                                             <p className="text-xl sm:text-2xl font-serif font-black text-foreground">
-                                                {Math.round(selectedComp.examScore / 5)}/20
+                                                {selectedComp.hasExamAttempt
+                                                    ? `${selectedComp.examContribution}/20`
+                                                    : "0/20"}
                                             </p>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => handleStartEditExam(selectedComp.examScore)}
+                                                onClick={() =>
+                                                    handleStartEditExam(selectedComp.examContribution || 0)
+                                                }
                                                 className="size-6 rounded-full"
                                             >
                                                 <Edit2 className="size-3" />
@@ -2923,23 +2937,35 @@ export default function FellowProgressTracker({
     };
 
     const handleUpdateCompExamScore = async (compId: string, scoreOutOf20: number) => {
-        // Find existing attempt for this competency
-        const existingAttempt = examAttempts.find((a) => a.exam_id === compId);
-        
+        const clamped = Math.max(0, Math.min(20, Math.round(scoreOutOf20)));
         // Normalize 0-20 to 0-100 for internal consistency
-        const normalizedScore = scoreOutOf20 * 5;
+        const normalizedScore = clamped * 5;
+
+        // Match paper (exam_id = competency id) and mirrored digital attempts
+        const existingAttempt =
+            examAttempts.find((a) => a.exam_id === compId) ||
+            examAttempts.find((a) => a.id.includes(`__${compId}__`));
 
         try {
             if (existingAttempt) {
                 await ExamService.updateExamAttempt(existingAttempt.id, {
                     score: normalizedScore,
                     passed: normalizedScore >= 75,
+                    // Admin paper/manual override must count immediately in performance scoring
+                    status: "graded",
+                    exam_id: existingAttempt.exam_id || compId,
                 });
 
                 setExamAttempts((prev) =>
                     prev.map((a) =>
                         a.id === existingAttempt.id
-                            ? { ...a, score: normalizedScore, passed: normalizedScore >= 75 }
+                            ? {
+                                  ...a,
+                                  score: normalizedScore,
+                                  passed: normalizedScore >= 75,
+                                  status: "graded",
+                                  exam_id: a.exam_id || compId,
+                              }
                             : a
                     )
                 );
@@ -2950,6 +2976,7 @@ export default function FellowProgressTracker({
                     user_id: userId,
                     score: normalizedScore,
                     passed: normalizedScore >= 75,
+                    status: "graded",
                 });
 
                 const newAttempt: ExamAttempt = {
@@ -2958,13 +2985,19 @@ export default function FellowProgressTracker({
                     user_id: userId,
                     score: normalizedScore,
                     passed: normalizedScore >= 75,
+                    status: "graded",
                     submitted_at: new Date().toISOString(),
                 };
 
                 setExamAttempts((prev) => [...prev, newAttempt]);
             }
         } catch (e) {
-            alert("Failed to update competency exam score.");
+            console.error("Failed to update competency exam score:", e);
+            alert(
+                e instanceof Error
+                    ? e.message
+                    : "Failed to update competency exam score."
+            );
         }
     };
 

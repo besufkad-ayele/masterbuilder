@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, DM_Serif_Display } from "next/font/google";
 import { DataProvider } from "@/components/providers/DataProvider";
-import { AdminDashboardProvider } from "@/context/AdminDashboardContext";
 import "./globals.css";
 
 const inter = Inter({
@@ -33,9 +32,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${dmSerifDisplay.variable} font-sans antialiased`}>
         <DataProvider>
-          <AdminDashboardProvider>
-            {children}
-          </AdminDashboardProvider>
+          {children}
         </DataProvider>
       </body>
     </html>

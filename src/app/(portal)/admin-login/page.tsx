@@ -37,6 +37,9 @@ export default function AdminLoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
+      // Ensure token is fresh before profile/directory reads
+      await user.getIdToken();
+
       // 2. Fetch User Profile from Firestore to verify ADMIN role
       const userDoc = await getDoc(doc(db, "users", user.uid));
 

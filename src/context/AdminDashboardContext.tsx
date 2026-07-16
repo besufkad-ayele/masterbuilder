@@ -1,12 +1,14 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
 import { FellowService } from '@/services/FellowService';
 import { CohortService } from '@/services/CohortService';
 import { FacilitatorService } from '@/services/FacilitatorService';
 import { companyService } from '@/services/companyService';
 import { groundingService } from '@/services/groundingService';
 import { firebaseService } from '@/services/firebaseService';
+import { auth } from '@/lib/firebase';
 import { AdminDashboardState } from '@/types';
 
 interface AdminDashboardContextType {
@@ -22,12 +24,21 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     const [data, setData] = useState<AdminDashboardState | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     const fetchData = useCallback(async () => {
+        if (!auth.currentUser) {
+            setLoading(false);
+            setError(new Error('You must be signed in to load admin data.'));
+            return;
+        }
+
         try {
             setLoading(true);
 
-            // Fetch data with individual error handling to be more resilient
+            // Ensure token is attached before Firestore reads
+            await auth.currentUser.getIdToken();
+
             const [
                 fellows,
                 cohorts,
@@ -56,10 +67,11 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
                 results: [],
                 evaluations: [],
                 groundingModules: modules.status === 'fulfilled' ? modules.value : [],
-                notifications: (notifications && notifications.status === 'fulfilled') ? notifications.value : []
-            } as AdminDashboardState);
+                notifications: (notifications && notifications.status === 'fulfilled') ? notifications.value : [],
+                coaches: [],
+                peerCircles: [],
+            });
 
-            // Log errors if any
             [fellows, cohorts, facilitators, companies, competencies, modules, notifications].forEach((res, i) => {
                 if (res.status === 'rejected') {
                     console.error(`AdminDashboard Error index ${i}:`, res.reason);
@@ -76,11 +88,31 @@ export function AdminDashboardProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        fetchData();
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+            const signedIn = !!firebaseUser;
+            setIsAuthenticated(signedIn);
+
+            if (signedIn) {
+                void fetchData();
+            } else {
+                setData(null);
+                setLoading(false);
+                setError(null);
+            }
+        });
+
+        return () => unsubscribe();
     }, [fetchData]);
 
     return (
-        <AdminDashboardContext.Provider value={{ data, loading, error, refresh: fetchData }}>
+        <AdminDashboardContext.Provider
+            value={{
+                data,
+                loading: loading || !isAuthenticated,
+                error,
+                refresh: fetchData,
+            }}
+        >
             {children}
         </AdminDashboardContext.Provider>
     );

@@ -148,7 +148,7 @@ export default function CoachPortfolioEvaluation() {
             await FellowProgressService.updatePortfolioReview(selectedPortfolio.id, {
                 status: selectedPortfolio.status as PortfolioStatus, // Keep original status
                 feedback: reviewFeedback,
-                reviewed_by: user?.id
+                ...(user?.id ? { reviewed_by: user.id } : {}),
             });
 
             // Update local state
@@ -165,6 +165,11 @@ export default function CoachPortfolioEvaluation() {
             setSelectedPortfolio(null);
         } catch (error) {
             console.error("Error submitting review:", error);
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to submit review. Please try again."
+            );
         } finally {
             setSubmitting(false);
         }

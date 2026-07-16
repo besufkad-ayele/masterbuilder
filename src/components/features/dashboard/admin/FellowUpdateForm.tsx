@@ -15,6 +15,7 @@ import { FellowService } from "@/services/FellowService";
 import { CohortService } from "@/services/CohortService";
 import { companyService } from "@/services/companyService";
 import { Company, FellowProfile } from "@/types";
+import { deleteField } from "firebase/firestore";
 import {
     GENDER_OPTIONS,
     QUALIFICATION_OPTIONS,
@@ -151,12 +152,10 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                 full_name: formData.name,
                 company_id: formData.companyId,
                 organization: formData.organization,
-                cohort_id: formData.cohortId || undefined,
                 highest_qualification: formData.highestQualification,
                 current_role: formData.currentRole,
                 leadership_experience_years: Number(formData.leadershipExperience),
                 gender: formData.gender,
-                age: formData.age ? parseInt(formData.age) : undefined,
                 primary_language: formData.primaryLanguage,
                 availability: formData.availability,
                 leadership_track: formData.leadershipTrack,
@@ -170,6 +169,16 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                 constraints: formData.constraints,
                 status: formData.status as any,
             };
+
+            if (formData.cohortId && formData.cohortId !== "none") {
+                updates.cohort_id = formData.cohortId;
+            } else {
+                (updates as Record<string, unknown>).cohort_id = deleteField();
+            }
+
+            if (formData.age) {
+                updates.age = parseInt(formData.age, 10);
+            }
 
             await FellowService.updateFellowProfile(fellow.id, fellow.user_id, updates);
             setOpen(false);
