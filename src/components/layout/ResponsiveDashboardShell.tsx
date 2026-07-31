@@ -66,7 +66,7 @@ export function ResponsiveDashboardShell({
             </button>
           )}
 
-          <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-6">{children}</div>
+          <div className="w-full max-w-[1600px] px-3 sm:px-5 md:px-6 py-4 sm:py-6">{children}</div>
         </main>
       </div>
     </div>

@@ -1,5 +1,4 @@
 # Master Builder Platform
-now let's add the admin dashboard feature in cohort detial i want download wave option for all fellows and the excel sheet is what i want + each fellow should have a bottom of fellow name by their  plus the each fellow detial should be classfied by the comptency details and should show the summation of thier like what is iin thier perfamocne tab 
 <p align="center">
 	<img src="./public/hero.jpg" alt="Master Builder hero" width="100%" />
 </p>
@@ -317,3 +316,78 @@ Recommended:
 ## License
 
 No license file is currently defined in this repository.
+
+
+
+Searched for "FellowProgressTracker"
+Viewed FellowProgressTracker.tsx:1-150
+Viewed FellowProgressTracker.tsx:150-300
+Searched for "activeView"
+Viewed FellowProgressTracker.tsx:2000-2200
+Viewed FellowProgressTracker.tsx:2700-2850
+Viewed FellowProgressTracker.tsx:2950-3100
+Searched for "const TABS"
+Viewed FellowProgressTracker.tsx:2850-2950
+Viewed FellowProgressTracker.tsx:3100-3250
+Viewed FellowProgressTracker.tsx:3250-3315
+Searched for "TABS ="
+Searched for "TABS\s*="
+Viewed FellowProgressTracker.tsx:2720-2750
+Searched for "activeClass"
+Viewed FellowProgressTracker.tsx:2700-2725
+Searched for "shortLabel"
+Viewed FellowProgressTracker.tsx:2985-3005
+Searched for "view: "portfolio""
+Viewed FellowProgressTracker.tsx:70-110
+Viewed FellowProgressTracker.tsx:2700-2730
+Viewed FellowProgressTracker.tsx:2960-3000
+Searched for "TABS"
+Viewed FellowProgressTracker.tsx:2965-2995
+Searched for "TABS"
+Searched for "const tabs"
+Searched for "view:"
+Searched for "TABS"
+Viewed FellowProgressTracker.tsx:2940-2980
+Viewed FellowProgressTracker.tsx:2980-3000
+Viewed FellowProgressTracker.tsx:2910-2940
+Viewed FellowProgressTracker.tsx:50-80
+Viewed FellowProgressTracker.tsx:2725-2760
+Viewed FellowProgressTracker.tsx:2980-3010
+Viewed FellowProgressTracker.tsx:2680-2722
+Searched for "TABS"
+Viewed FellowProgressTracker.tsx:2970-2994
+Viewed FellowProgressTracker.tsx:30-70
+Viewed FellowProgressTracker.tsx:2500-2550
+Searched for "TABS"
+Viewed FellowProgressTracker.tsx:2320-2400
+Viewed FellowProgressTracker.tsx:2400-2430
+Searched for "onNavigateToProgress"
+Viewed AdminFellowsTab.tsx:740-760
+Searched for "function PerformanceBreakdownView"
+Searched for "PerformanceBreakdown"
+Viewed FellowProgressTracker.tsx:3010-3080
+Viewed FellowProgressTracker.tsx:1800-1950
+Viewed FellowProgressTracker.tsx:2329-2420
+Viewed FellowProgressTracker.tsx:2720-2735
+Edited FellowProgressTracker.tsx
+Ran command: `pnpm exec tsc --noEmit`
+
+I have re-ordered the performance tabs in [FellowProgressTracker.tsx](file:///d:/02_Work_and_Engineering/01_Development/Projects/Icapital/masterbuilder/src/components/features/dashboard/admin/FellowProgressTracker.tsx) so that **Performance Breakdown** and **Examinations & Grading** come first, and set the default active view to **Performance Breakdown**:
+
+### Updated Tab Order:
+1. 📈 **Performance Breakdown** (`performance`) *(Default)*
+   - Displays full composite score calculation, mastery targets, grounding contribution, final exam inline grade editor, and granular Behavioral Indicator breakdown (Believe, Know, Do, BI Score).
+2. 🎓 **Examinations & Grading** (`detail`)
+   - Detailed examination attempt viewer, written answer grading controls, and mark approvals.
+3. 📁 **Portfolio (Do)** (`portfolio`)
+   - STAR submission reviews, status filtering, and evidence grading.
+4. 📚 **Competency Matrix** (`competency`)
+   - Comprehensive competency matrix & proficiency level stats.
+5. 🧠 **Quizzes (Know)** (`quiz`)
+   - Know-phase quiz attempts, pass/fail status, and attempt logs.
+6. 💖 **Mindsets (Believe)** (`believe`)
+   - Mindset reflection status and locked-in mindsets.
+7. 🌊 **Wave Timeline** (`wave`)
+   - Cohort Wave progress timeline and milestone tracking.
+8. 📊 **Program Overview** (`overall`)
+   - Program-wide summary charts and overall averages.

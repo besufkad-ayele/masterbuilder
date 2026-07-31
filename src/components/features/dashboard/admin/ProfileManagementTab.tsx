@@ -55,18 +55,25 @@ function NavItem({
     };
 
     return (
-        <button
-            onClick={onClick}
-            className={cn(
-                "flex items-center justify-center transition-all duration-300 shrink-0",
-                sizeClasses[size],
-                isActive ? activeClass : inactiveClass
-            )}
-            title={label}
-            aria-label={label}
-        >
-            <span className={iconSizeClasses[size]}>{icon}</span>
-        </button>
+        <div className="relative group/navitem">
+            <button
+                onClick={onClick}
+                className={cn(
+                    "flex items-center justify-center transition-all duration-300 shrink-0",
+                    sizeClasses[size],
+                    isActive ? activeClass : inactiveClass
+                )}
+                title={label}
+                aria-label={label}
+            >
+                <span className={iconSizeClasses[size]}>{icon}</span>
+            </button>
+
+            {/* Hover Tooltip */}
+            <div className="hidden xl:block absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-[#1B4332] text-white text-xs font-bold rounded-xl whitespace-nowrap opacity-0 group-hover/navitem:opacity-100 pointer-events-none transition-all duration-200 z-50 shadow-xl border border-white/10">
+                {label}
+            </div>
+        </div>
     );
 }
 
@@ -196,22 +203,22 @@ export default function ProfileManagementTab() {
         ];
 
         return (
-            <div className="flex flex-col xl:flex-row gap-3 sm:gap-4 md:gap-6 lg:gap-8 animate-in fade-in duration-500">
+            <div className="flex flex-col xl:flex-row gap-3 sm:gap-4 md:gap-5 animate-in fade-in duration-500 w-full">
                 {/* ─── Desktop Side Navigation (xl+) ─────────────────────────────── */}
-                <div className="hidden xl:flex flex-col gap-3 w-[72px] py-6 bg-white/60 backdrop-blur-md rounded-[2rem] border-2 border-[#E8E4D8] sticky top-6 h-fit items-center shadow-xl">
+                <div className="hidden xl:flex flex-col gap-2.5 w-[60px] py-4 bg-white/80 backdrop-blur-md rounded-2xl border-2 border-[#E8E4D8] sticky top-4 h-fit items-center shadow-md shrink-0">
                     {/* Hub Button */}
                     <NavItem
                         isActive={false}
                         onClick={() => setActiveView("hub")}
                         icon={<LayoutDashboard className="size-full" />}
-                        label="Back to Hub"
+                        label="Back to Profile Management Hub"
                         activeClass=""
                         inactiveClass="text-muted-foreground hover:bg-stone-100 hover:text-foreground"
-                        size="md"
+                        size="sm"
                     />
 
                     {/* Divider */}
-                    <div className="w-8 h-px bg-[#E8E4D8] my-1" />
+                    <div className="w-6 h-px bg-[#E8E4D8] my-0.5" />
 
                     {/* Nav Items */}
                     {navItems.map((item) => (
@@ -223,7 +230,7 @@ export default function ProfileManagementTab() {
                             label={item.label}
                             activeClass={item.activeClass}
                             inactiveClass={item.inactiveClass}
-                            size="md"
+                            size="sm"
                         />
                     ))}
                 </div>
@@ -235,7 +242,7 @@ export default function ProfileManagementTab() {
                         isActive={false}
                         onClick={() => setActiveView("hub")}
                         icon={<LayoutDashboard className="size-full" />}
-                        label="Back to Hub"
+                        label="Back to Profile Management Hub"
                         activeClass=""
                         inactiveClass="text-muted-foreground hover:bg-stone-100 hover:text-foreground"
                         size="sm"
@@ -274,17 +281,6 @@ export default function ProfileManagementTab() {
 
                 {/* ─── Main Content Area ─────────────────────────────────────────── */}
                 <div className="flex-1 min-w-0 space-y-3 sm:space-y-4 md:space-y-6">
-                    {/* Back Button */}
-                    <Button
-                        variant="ghost"
-                        onClick={() => setActiveView("hub")}
-                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-all hover:bg-white/50 rounded-full font-serif font-bold italic px-3 sm:px-4 md:px-6 h-9 sm:h-10"
-                    >
-                        <ArrowLeft className="size-3.5 sm:size-4" />
-                        <span className="hidden sm:inline">Back to Profile Management</span>
-                        <span className="sm:hidden">Back</span>
-                    </Button>
-
                     {/* Tab Content */}
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                         {views[activeView]}

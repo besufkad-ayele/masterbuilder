@@ -20,6 +20,17 @@ import {
     ShieldCheck,
     Loader2,
     ChevronRight,
+    TrendingUp,
+    ArrowRight,
+    Camera,
+    Sparkles,
+    Copy,
+    Check,
+    PhoneCall,
+    Send,
+    FileText,
+    Download,
+    ExternalLink,
 } from "lucide-react";
 import {
     Card,
@@ -33,7 +44,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
     Dialog,
     DialogContent,
@@ -49,6 +60,7 @@ import { FellowService } from "@/services/FellowService";
 import FellowUpdateForm from "./FellowUpdateForm";
 import { FellowProfile } from "@/types";
 import { RequiredMark } from "@/components/ui/label";
+import { filesApi } from "@/lib/api";
 
 interface UserProfileDetailProps {
     user: {
@@ -80,9 +92,11 @@ interface UserProfileDetailProps {
         leadership_track?: string;
         personality_style?: string;
         constraints?: string;
+        certificateUrl?: string;
     };
     isEditable?: boolean;
     onUpdate?: () => void;
+    onNavigateToProgress?: () => void;
 }
 
 // ─── Info Row Component ───────────────────────────────────────────────────────
@@ -91,80 +105,30 @@ function InfoRow({
     icon,
     label,
     value,
+    action,
 }: {
     icon: React.ReactNode;
     label: string;
     value: string;
+    action?: React.ReactNode;
 }) {
     return (
-        <div className="flex items-start gap-3 sm:gap-4">
-            <div className="size-8 sm:size-9 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground shrink-0">
-                {icon}
-            </div>
-            <div className="min-w-0 flex-1 py-0.5">
-                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-0.5">
-                    {label}
-                </p>
-                <p className="font-medium text-foreground text-sm sm:text-base break-words leading-snug">
-                    {value}
-                </p>
-            </div>
-        </div>
-    );
-}
-
-// ─── Quick Action Button ──────────────────────────────────────────────────────
-
-function QuickActionButton({
-    icon: Icon,
-    title,
-    subtitle,
-    colorClass,
-    hoverClass,
-    iconAnimation = "group-hover:scale-110",
-}: {
-    icon: any;
-    title: string;
-    subtitle: string;
-    colorClass: string;
-    hoverClass: string;
-    iconAnimation?: string;
-}) {
-    return (
-        <Button
-            variant="ghost"
-            className={cn(
-                "rounded-xl sm:rounded-2xl px-3 sm:px-4 md:px-6 py-3 sm:py-4 h-auto transition-all group w-full sm:w-auto justify-start",
-                colorClass,
-                hoverClass
-            )}
-        >
-            <div className="flex flex-col items-start gap-0.5 sm:gap-1 w-full min-w-0">
-                <div className="flex items-center gap-2 font-bold text-xs sm:text-sm">
-                    <Icon
-                        className={cn(
-                            "size-3.5 sm:size-4 shrink-0 transition-transform",
-                            iconAnimation
-                        )}
-                    />
-                    <span className="truncate">{title}</span>
+        <div className="group p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-stone-50/80 border border-[#E8E4D8] flex items-center justify-between gap-3 hover:bg-emerald-50/30 hover:border-[#1B4332]/25 transition-all duration-300 shadow-2xs">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="size-9 sm:size-10 rounded-xl bg-[#1B4332]/10 text-[#1B4332] flex items-center justify-center shrink-0 group-hover:bg-[#1B4332] group-hover:text-white transition-colors duration-300">
+                    {icon}
                 </div>
-                <span
-                    className={cn(
-                        "text-[9px] sm:text-[10px] font-medium truncate w-full",
-                        colorClass.includes("emerald")
-                            ? "text-emerald-600/60"
-                            : colorClass.includes("blue")
-                                ? "text-blue-600/60"
-                                : colorClass.includes("purple")
-                                    ? "text-purple-600/60"
-                                    : "text-amber-600/60"
-                    )}
-                >
-                    {subtitle}
-                </span>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-muted-foreground/80 mb-0.5">
+                        {label}
+                    </p>
+                    <p className="font-semibold text-foreground text-xs sm:text-sm truncate">
+                        {value}
+                    </p>
+                </div>
             </div>
-        </Button>
+            {action && <div className="shrink-0">{action}</div>}
+        </div>
     );
 }
 
@@ -174,11 +138,49 @@ export default function UserProfileDetail({
     user,
     isEditable = false,
     onUpdate,
+    onNavigateToProgress,
 }: UserProfileDetailProps) {
     const isFellow = user.role.toUpperCase() === "FELLOW" || !!user.fellow_id;
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const normalizedRole = user.role.toUpperCase();
+
+    // Image Upload state
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [currentAvatar, setCurrentAvatar] = useState(user.avatar);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+    // Certificate Upload state
+    const certInputRef = useRef<HTMLInputElement>(null);
+    const [certificateUrl, setCertificateUrl] = useState<string | undefined>(
+        user.certificateUrl || (user as any).certificate_url
+    );
+    const [isUploadingCert, setIsUploadingCert] = useState(false);
+
+    const handleCertificateUpload = async (
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setIsUploadingCert(true);
+            const res = await filesApi.upload(file);
+            const uploadedUrl = res.url;
+            setCertificateUrl(uploadedUrl);
+
+            if (normalizedRole === "FELLOW") {
+                await FellowService.updateFellowProfile(user.id, user.user_id, {
+                    certificateUrl: uploadedUrl,
+                } as any);
+            }
+            if (onUpdate) onUpdate();
+        } catch (err) {
+            console.error("Failed to upload certificate", err);
+        } finally {
+            setIsUploadingCert(false);
+        }
+    };
 
     const [editData, setEditData] = useState({
         name: user.name,
@@ -188,6 +190,42 @@ export default function UserProfileDetail({
         bio: user.bio || "",
         title: user.current_role || user.role,
     });
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            setIsUploadingAvatar(true);
+            const localPreview = URL.createObjectURL(file);
+            setCurrentAvatar(localPreview);
+
+            const res = await filesApi.upload(file);
+            const uploadedUrl = res.url || localPreview;
+            setCurrentAvatar(uploadedUrl);
+
+            if (normalizedRole === "FELLOW") {
+                await FellowService.updateFellowProfile(user.id, user.user_id, {
+                    avatar: uploadedUrl,
+                } as any);
+            }
+            if (onUpdate) onUpdate();
+        } catch (err) {
+            console.error("Failed to upload avatar image", err);
+        } finally {
+            setIsUploadingAvatar(false);
+        }
+    };
+
+    // Copy to Clipboard state
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+
+    const handleCopy = (text: string, field: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
+    };
 
     const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -251,171 +289,162 @@ export default function UserProfileDetail({
 
     return (
         <div className="space-y-4 sm:space-y-6 md:space-y-8 animate-in fade-in duration-500">
-            {/* ─── Premium Header Section ─────────────────────────────────────────── */}
-            <div className="relative group/header">
-                {/* Background Gradient with Pattern */}
-                <div className="h-32 sm:h-40 md:h-48 lg:h-56 xl:h-64 w-full rounded-2xl sm:rounded-[2rem] md:rounded-[2.5rem] lg:rounded-[3rem] bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#52B788] border-b-2 sm:border-b-4 border-white/20 overflow-hidden relative shadow-lg sm:shadow-xl md:shadow-2xl">
-                    <div className="absolute inset-0 opacity-10 mix-blend-overlay">
-                        <Globe
-                            className="absolute -right-8 sm:-right-12 md:-right-16 lg:-right-20 -bottom-8 sm:-bottom-12 md:-bottom-16 lg:-bottom-20 rotate-12 size-40 sm:size-56 md:size-72 lg:size-80 xl:size-96"
-                        />
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.2),transparent)]" />
-                    </div>
+            {/* Hidden File Input for Avatar Upload */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                className="hidden"
+            />
 
-                    {/* Decorative floating elements */}
-                    <div className="absolute top-4 sm:top-6 md:top-8 lg:top-10 left-4 sm:left-6 md:left-8 lg:left-10 size-1.5 sm:size-2 md:size-2.5 lg:size-3 rounded-full bg-white/30 animate-pulse" />
-                    <div className="absolute bottom-6 sm:bottom-8 md:bottom-10 lg:bottom-12 right-1/4 size-1 sm:size-1.5 md:size-2 rounded-full bg-white/20" />
+            {/* ─── Integrated Green Hero Banner Card ─────────────────────────────────── */}
+            <div className="relative rounded-2xl sm:rounded-[2rem] md:rounded-[2.5rem] bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#143D2D] p-5 sm:p-7 md:p-8 text-white shadow-xl border border-white/10 overflow-hidden">
+                {/* Background Pattern */}
+                <div className="absolute inset-0 opacity-10 mix-blend-overlay pointer-events-none">
+                    <Globe className="absolute -right-12 -bottom-12 rotate-12 size-72 sm:size-96" />
                 </div>
 
-                {/* Avatar & Key Info - Overlapping */}
-                <div className="px-3 sm:px-4 md:px-6 lg:px-8 xl:px-14 -mt-12 sm:-mt-14 md:-mt-18 lg:-mt-20 xl:-mt-24 flex flex-col items-center xl:items-end xl:flex-row gap-3 sm:gap-4 md:gap-6 lg:gap-8 relative z-10 w-full">
-                    {/* Avatar */}
-                    <div className="relative shrink-0">
-                        <Avatar className="size-24 sm:size-28 md:size-32 lg:size-36 xl:size-44 rounded-2xl sm:rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] xl:rounded-[3rem] border-[6px] sm:border-[8px] md:border-[10px] lg:border-[12px] border-white shadow-[0_8px_24px_rgba(0,0,0,0.1)] sm:shadow-[0_12px_32px_rgba(0,0,0,0.12)] md:shadow-[0_16px_48px_rgba(0,0,0,0.14)] lg:shadow-[0_24px_64px_rgba(0,0,0,0.15)] group-hover/header:rotate-1 transition-transform duration-700">
-                            <AvatarImage src={user.avatar} />
-                            <AvatarFallback className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-serif font-black bg-[#FDFCF6] text-primary rounded-2xl sm:rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] xl:rounded-[3rem]">
-                                {userInitials}
-                            </AvatarFallback>
-                        </Avatar>
-                        {/* Role Badge on Avatar */}
-                        <div className="absolute bottom-0 sm:bottom-1 right-0 sm:right-1 size-7 sm:size-8 md:size-9 lg:size-10 rounded-lg sm:rounded-xl md:rounded-2xl bg-white shadow-lg border border-[#E8E4D8] flex items-center justify-center text-primary">
-                            {isFellow ? (
-                                <GraduationCap className="size-3.5 sm:size-4 md:size-5" />
-                            ) : (
-                                <ShieldCheck className="size-3.5 sm:size-4 md:size-5" />
-                            )}
-                        </div>
-                    </div>
+                <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between gap-5 sm:gap-6">
+                    {/* Left: Avatar & Fellow Primary Info */}
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 text-center sm:text-left min-w-0 flex-1">
+                        {/* Avatar with Camera Overlay & Click to Upload Image */}
+                        <div
+                            className="relative shrink-0 group/avatar cursor-pointer"
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Click to insert or change photo"
+                        >
+                            <Avatar className="size-20 sm:size-24 md:size-28 rounded-2xl border-4 border-white/20 shadow-2xl transition-transform group-hover/avatar:scale-105">
+                                <AvatarImage src={currentAvatar} />
+                                <AvatarFallback className="text-2xl sm:text-3xl font-serif font-black bg-white text-[#1B4332] rounded-2xl">
+                                    {userInitials}
+                                </AvatarFallback>
+                            </Avatar>
 
-                    {/* Name & Info */}
-                    <div className="flex-1 flex flex-col lg:flex-row lg:items-end justify-between gap-3 sm:gap-4 md:gap-6 w-full pb-1 sm:pb-2 text-center xl:text-left">
-                        <div className="space-y-1.5 sm:space-y-2 md:space-y-3 min-w-0">
-                            {/* Name & Status Row */}
-                            <div className="flex flex-wrap items-center justify-center xl:justify-start gap-1.5 sm:gap-2 md:gap-3">
-                                <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-serif font-bold text-[#1B4332] tracking-tight break-words">
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover/avatar:opacity-100 flex flex-col items-center justify-center text-white transition-opacity duration-200 backdrop-blur-[2px]">
+                                {isUploadingAvatar ? (
+                                    <Loader2 className="size-6 animate-spin" />
+                                ) : (
+                                    <>
+                                        <Camera className="size-6" />
+                                        <span className="text-[9px] font-bold uppercase tracking-wider mt-1">
+                                            Upload Photo
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Badge Trigger */}
+                            <div className="absolute -bottom-1 -right-1 size-8 rounded-xl bg-white text-[#1B4332] shadow-md border border-[#E8E4D8] flex items-center justify-center group-hover/avatar:scale-110 transition-transform">
+                                {isUploadingAvatar ? (
+                                    <Loader2 className="size-4 animate-spin text-primary" />
+                                ) : (
+                                    <Camera className="size-4 text-[#1B4332]" />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Details */}
+                        <div className="space-y-1.5 min-w-0">
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight break-words">
                                     {user.name}
                                 </h2>
                                 <Badge
                                     className={cn(
-                                        "rounded-full px-2.5 sm:px-3 md:px-4 py-0.5 sm:py-1 text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase tracking-wider shadow-md shrink-0",
+                                        "rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-wider shadow-sm shrink-0",
                                         user.status === "Active"
-                                            ? "bg-emerald-500 text-white"
-                                            : "bg-amber-500 text-white"
+                                            ? "bg-emerald-400 text-emerald-950 font-bold"
+                                            : "bg-amber-400 text-amber-950 font-bold"
                                     )}
                                 >
                                     {user.status}
                                 </Badge>
                             </div>
 
-                            {/* Fellow ID if exists */}
-                            {user.fellow_id && (
-                                <div className="flex justify-center xl:justify-start">
-                                    <div className="inline-flex px-2.5 sm:px-3 md:px-4 py-1 sm:py-1.5 bg-white/80 backdrop-blur-md rounded-full border border-[#E8E4D8] text-[8px] sm:text-[9px] md:text-[10px] font-black text-[#8B9B7E] tracking-wider shadow-sm">
-                                        ID: {user.fellow_id}
-                                    </div>
-                                </div>
-                            )}
+                            <p className="text-white/80 font-serif italic text-sm sm:text-base leading-snug truncate">
+                                {user.current_role || user.role} • {user.organization || user.company || "Lead Life System"}
+                            </p>
 
-                            {/* Role & Organization */}
-                            <div className="flex flex-wrap items-center justify-center xl:justify-start gap-1.5 sm:gap-2 text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl text-[#1B4332]/60 font-serif italic">
-                                <span className="truncate max-w-[150px] sm:max-w-[200px] md:max-w-none">
-                                    {user.current_role || user.role}
-                                </span>
-                                <span className="size-1 sm:size-1.5 rounded-full bg-primary/30 shrink-0" />
-                                <span className="truncate max-w-[150px] sm:max-w-[200px] md:max-w-none">
-                                    {user.organization ||
-                                        user.company ||
-                                        "Lead Life System"}
-                                </span>
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                                {user.fellow_id && (
+                                    <span className="inline-flex px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/15 text-[10px] font-bold text-emerald-200 tracking-wider">
+                                        ID: {user.fellow_id}
+                                    </span>
+                                )}
+                                {user.leadership_track && (
+                                    <span className="inline-flex px-3 py-1 bg-amber-400/20 backdrop-blur-md rounded-full border border-amber-400/30 text-[10px] font-bold text-amber-200 tracking-wider">
+                                        Track: {user.leadership_track}
+                                    </span>
+                                )}
+                                {user.cohort && (
+                                    <span className="inline-flex px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/15 text-[10px] font-bold text-white/90 tracking-wider">
+                                        Cohort: {user.cohort}
+                                    </span>
+                                )}
                             </div>
                         </div>
+                    </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap justify-center xl:justify-end gap-2 sm:gap-3 shrink-0">
-                            {isEditable &&
-                                (isFellow ? (
-                                    <FellowUpdateForm
-                                        fellow={user as any}
-                                        onFellowUpdated={
-                                            onUpdate || (() => window.location.reload())
-                                        }
-                                        trigger={
-                                            <Button className="h-10 sm:h-11 md:h-12 lg:h-14 px-4 sm:px-6 md:px-8 lg:px-10 rounded-xl sm:rounded-2xl bg-[#1B4332] text-white font-bold text-xs sm:text-sm shadow-lg shadow-primary/20 hover:bg-[#2D6A4F] transition-all group/btn">
-                                                <Edit className="size-3.5 sm:size-4 mr-2 transition-transform group-hover/btn:-rotate-12" />
-                                                <span className="hidden sm:inline">
-                                                    Update Profile
-                                                </span>
-                                                <span className="sm:hidden">Update</span>
-                                            </Button>
-                                        }
-                                    />
-                                ) : (
-                                    <Button
-                                        onClick={() => setIsEditModalOpen(true)}
-                                        className="h-10 sm:h-11 md:h-12 lg:h-14 px-4 sm:px-6 md:px-8 lg:px-10 rounded-xl sm:rounded-2xl bg-[#1B4332] text-white font-bold text-xs sm:text-sm shadow-lg shadow-primary/20 hover:bg-[#2D6A4F] transition-all group/btn"
-                                    >
-                                        <Edit className="size-3.5 sm:size-4 mr-2 transition-transform group-hover/btn:-rotate-12" />
-                                        <span className="hidden sm:inline">Update Profile</span>
-                                        <span className="sm:hidden">Update</span>
-                                    </Button>
-                                ))}
+                    {/* Right: Performance Link & Upload Certificate Button */}
+                    <div className="shrink-0 w-full sm:w-auto flex flex-wrap items-center justify-center md:justify-end gap-2.5 pt-2 md:pt-0">
+                        {/* Hidden Certificate File Input */}
+                        <input
+                            type="file"
+                            ref={certInputRef}
+                            onChange={handleCertificateUpload}
+                            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                            className="hidden"
+                        />
+
+                        <Button
+                            onClick={() => certInputRef.current?.click()}
+                            disabled={isUploadingCert}
+                            variant="outline"
+                            className="h-11 sm:h-12 px-5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border-white/20 font-bold text-xs sm:text-sm backdrop-blur-md shadow-lg transition-all"
+                        >
+                            {isUploadingCert ? (
+                                <Loader2 className="size-4 animate-spin mr-2 text-white" />
+                            ) : (
+                                <FileText className="size-4 mr-2 text-emerald-300" />
+                            )}
+                            <span>{certificateUrl ? "Update Certificate" : "Upload Certificate"}</span>
+                        </Button>
+
+                        {onNavigateToProgress && (
                             <Button
-                                variant="outline"
-                                size="icon"
-                                className="size-10 sm:size-11 md:size-12 lg:size-14 rounded-xl sm:rounded-2xl border-[#E8E4D8] bg-white text-[#8B9B7E] hover:text-primary transition-all shadow-sm"
+                                onClick={onNavigateToProgress}
+                                className="h-11 sm:h-12 px-6 rounded-2xl bg-white text-[#1B4332] font-bold text-xs sm:text-sm shadow-xl hover:bg-[#FDFCF6] hover:scale-[1.02] transition-all group/btn w-full sm:w-auto"
                             >
-                                <MoreVertical className="size-4 sm:size-5" />
+                                <TrendingUp className="size-4 mr-2 text-[#1B4332] transition-transform group-hover/btn:scale-110" />
+                                <span>View Student Performance</span>
+                                <ChevronRight className="size-4 ml-1.5 transition-transform group-hover/btn:translate-x-1" />
                             </Button>
-                        </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Integrated Performance Summary Metrics Bar inside the green card */}
+                <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Qualification</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.highest_qualification || "Advanced Degree"}</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Leadership Exp.</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.leadership_experience_years || 0} Years Exp.</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Availability</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.availability || "Full Availability"}</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Location</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.location || "Addis Ababa, ET"}</p>
                     </div>
                 </div>
             </div>
-
-            {/* ─── Quick Actions Bar (Fellow only) ─────────────────────────────────── */}
-            {isFellow && (
-                <div className="flex flex-col gap-3 sm:gap-4 py-3 sm:py-4 md:py-5 lg:py-6 px-3 sm:px-4 bg-white/40 backdrop-blur-md rounded-xl sm:rounded-2xl md:rounded-[2rem] lg:rounded-[2.5rem] border-2 border-[#E8E4D8] shadow-sm animate-in fade-in slide-in-from-top-4 duration-1000">
-                    {/* Header */}
-                    <div className="flex items-center gap-2 px-1 sm:px-2">
-                        <ChevronRight className="size-3 sm:size-4 text-[#8B9B7E]" />
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.15em] text-[#8B9B7E]">
-                            Quick Access
-                        </p>
-                    </div>
-
-                    {/* Actions Grid */}
-                    <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-                        <QuickActionButton
-                            icon={Briefcase}
-                            title="Portfolio Hub"
-                            subtitle="Verify submissions & artifacts"
-                            colorClass="text-emerald-700"
-                            hoverClass="hover:bg-emerald-50 hover:text-emerald-800"
-                        />
-                        <QuickActionButton
-                            icon={Target}
-                            title="Performance Analytics"
-                            subtitle="Review metrics & KPIs"
-                            colorClass="text-blue-700"
-                            hoverClass="hover:bg-blue-50 hover:text-blue-800"
-                        />
-                        <QuickActionButton
-                            icon={Calendar}
-                            title="Learning Sessions"
-                            subtitle="Calendar & attendance"
-                            colorClass="text-purple-700"
-                            hoverClass="hover:bg-purple-50 hover:text-purple-800"
-                        />
-                        <QuickActionButton
-                            icon={GraduationCap}
-                            title="Reset Progress"
-                            subtitle="Danger Zone"
-                            colorClass="text-amber-700"
-                            hoverClass="hover:bg-amber-50 hover:text-amber-800"
-                            iconAnimation="group-hover:rotate-12"
-                        />
-                    </div>
-                </div>
-            )}
 
             {/* ─── Edit Modal ──────────────────────────────────────────────────────── */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -560,43 +589,98 @@ export default function UserProfileDetail({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
                 {/* Left Column: Contact Info */}
                 <div className="lg:col-span-1 space-y-4 sm:space-y-5 md:space-y-6">
-                    <Card className="rounded-2xl sm:rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] border-2 border-[#E8E4D8] overflow-hidden shadow-sm">
-                        <CardHeader className="bg-muted/30 px-4 sm:px-5 md:px-6 py-3 sm:py-4">
-                            <CardTitle className="text-sm sm:text-base md:text-lg font-serif flex items-center gap-2">
-                                <Mail className="size-4 sm:size-5 text-primary/60" />
-                                Contact Information
-                            </CardTitle>
+                    <Card className="rounded-2xl sm:rounded-[2rem] border-2 border-[#E8E4D8] bg-white overflow-hidden shadow-md">
+                        <CardHeader className="bg-gradient-to-r from-[#1B4332]/5 via-emerald-50/40 to-transparent px-5 py-4 border-b border-[#E8E4D8]">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base sm:text-lg font-serif font-bold text-[#1B4332] flex items-center gap-2.5">
+                                    <div className="size-8 rounded-lg bg-[#1B4332] text-white flex items-center justify-center shadow-xs">
+                                        <Mail className="size-4" />
+                                    </div>
+                                    Contact Information
+                                </CardTitle>
+                                <Badge variant="outline" className="border-[#1B4332]/20 text-[#1B4332] font-semibold text-[10px] uppercase tracking-wider bg-white">
+                                    Verified
+                                </Badge>
+                            </div>
                         </CardHeader>
-                        <CardContent className="px-4 sm:px-5 md:px-6 py-4 sm:py-5 md:py-6 space-y-3 sm:space-y-4 md:space-y-5">
+                        <CardContent className="p-4 sm:p-5 space-y-3">
                             <InfoRow
-                                icon={<Mail className="size-3.5 sm:size-4" />}
-                                label="Email"
+                                icon={<Mail className="size-4" />}
+                                label="Email Address"
                                 value={user.email}
+                                action={
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCopy(user.email, "email")}
+                                            className="size-8 rounded-lg bg-white border border-[#E8E4D8] flex items-center justify-center text-stone-600 hover:text-[#1B4332] hover:border-[#1B4332] transition-colors shadow-2xs"
+                                            title="Copy Email"
+                                        >
+                                            {copiedField === "email" ? (
+                                                <Check className="size-3.5 text-emerald-600 animate-in zoom-in" />
+                                            ) : (
+                                                <Copy className="size-3.5" />
+                                            )}
+                                        </button>
+                                        <a
+                                            href={`mailto:${user.email}`}
+                                            className="size-8 rounded-lg bg-[#1B4332]/10 text-[#1B4332] hover:bg-[#1B4332] hover:text-white flex items-center justify-center transition-colors shadow-2xs"
+                                            title="Send Direct Email"
+                                        >
+                                            <Send className="size-3.5" />
+                                        </a>
+                                    </div>
+                                }
                             />
                             <InfoRow
-                                icon={<Phone className="size-3.5 sm:size-4" />}
-                                label="Phone"
+                                icon={<Phone className="size-4" />}
+                                label="Phone Number"
                                 value={user.phone || "Not provided"}
+                                action={
+                                    user.phone ? (
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(user.phone!, "phone")}
+                                                className="size-8 rounded-lg bg-white border border-[#E8E4D8] flex items-center justify-center text-stone-600 hover:text-[#1B4332] hover:border-[#1B4332] transition-colors shadow-2xs"
+                                                title="Copy Phone Number"
+                                            >
+                                                {copiedField === "phone" ? (
+                                                    <Check className="size-3.5 text-emerald-600 animate-in zoom-in" />
+                                                ) : (
+                                                    <Copy className="size-3.5" />
+                                                )}
+                                            </button>
+                                            <a
+                                                href={`tel:${user.phone}`}
+                                                className="size-8 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center justify-center transition-colors shadow-2xs"
+                                                title="Direct Call"
+                                            >
+                                                <PhoneCall className="size-3.5" />
+                                            </a>
+                                        </div>
+                                    ) : undefined
+                                }
                             />
                             <InfoRow
-                                icon={<MapPin className="size-3.5 sm:size-4" />}
+                                icon={<MapPin className="size-4" />}
                                 label="Location"
                                 value={user.location || "Addis Ababa, Ethiopia"}
                             />
                             <InfoRow
-                                icon={<Globe className="size-3.5 sm:size-4" />}
+                                icon={<Globe className="size-4" />}
                                 label="Primary Language"
-                                value={user.primary_language || "Not specified"}
+                                value={user.primary_language || "English / Amharic"}
                             />
                             {isFellow && (
                                 <>
                                     <InfoRow
-                                        icon={<Calendar className="size-3.5 sm:size-4" />}
+                                        icon={<Calendar className="size-4" />}
                                         label="Availability"
-                                        value={user.availability || "Not specified"}
+                                        value={user.availability || "Full Availability"}
                                     />
                                     <InfoRow
-                                        icon={<Target className="size-3.5 sm:size-4" />}
+                                        icon={<Target className="size-4" />}
                                         label="Leadership Track"
                                         value={user.leadership_track || "General"}
                                     />
@@ -609,104 +693,178 @@ export default function UserProfileDetail({
                 {/* Right Column: Leadership Profile (Fellow only) */}
                 <div className="lg:col-span-2 space-y-4 sm:space-y-5 md:space-y-6">
                     {isFellow && (
-                        <Card className="rounded-2xl sm:rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] border-2 border-[#E8E4D8] overflow-hidden shadow-sm">
-                            <CardHeader className="bg-muted/30 px-4 sm:px-5 md:px-6 py-3 sm:py-4">
-                                <CardTitle className="text-sm sm:text-base md:text-lg font-serif flex items-center gap-2">
-                                    <Award className="size-4 sm:size-5 text-primary/60" />
-                                    Leadership & Professional Profile
-                                </CardTitle>
+                        <Card className="rounded-2xl sm:rounded-[2rem] border-2 border-[#E8E4D8] bg-white overflow-hidden shadow-md">
+                            <CardHeader className="bg-gradient-to-r from-[#1B4332]/5 via-emerald-50/40 to-transparent px-5 sm:px-6 py-4 border-b border-[#E8E4D8]">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-base sm:text-lg font-serif font-bold text-[#1B4332] flex items-center gap-2.5">
+                                        <div className="size-8 rounded-lg bg-[#1B4332] text-white flex items-center justify-center shadow-xs">
+                                            <Award className="size-4" />
+                                        </div>
+                                        Leadership & Professional Profile
+                                    </CardTitle>
+                                    <Badge variant="outline" className="border-[#1B4332]/20 text-[#1B4332] font-semibold text-[10px] uppercase tracking-wider bg-white">
+                                        Verified Profile
+                                    </Badge>
+                                </div>
                             </CardHeader>
-                            <CardContent className="px-4 sm:px-5 md:px-6 py-4 sm:py-6 md:py-8 space-y-5 sm:space-y-6 md:space-y-8">
+                            <CardContent className="p-5 sm:p-6 md:p-8 space-y-6 sm:space-y-8">
                                 {/* Qualifications & Experience Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8">
-                                    <div className="space-y-2 sm:space-y-3">
-                                        <h4 className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                                            <GraduationCap className="size-3.5 sm:size-4" />
-                                            Qualifications
-                                        </h4>
-                                        <p className="font-serif italic text-foreground text-sm sm:text-base leading-relaxed">
-                                            {user.highest_qualification ||
-                                                "Advanced Degree in leadership and management"}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                                    {/* Qualifications Card */}
+                                    <div className="p-4 sm:p-5 rounded-2xl bg-stone-50/80 border border-[#E8E4D8] space-y-3 relative overflow-hidden group hover:border-[#1B4332]/30 hover:bg-emerald-50/30 transition-all duration-300">
+                                        <div className="flex items-center gap-2 text-[#1B4332]">
+                                            <div className="size-8 rounded-xl bg-emerald-100/80 text-[#1B4332] flex items-center justify-center">
+                                                <GraduationCap className="size-4" />
+                                            </div>
+                                            <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1B4332]">
+                                                Academic Qualifications
+                                            </h4>
+                                        </div>
+                                        <p className="font-serif italic text-foreground text-base sm:text-lg font-semibold leading-relaxed pl-1">
+                                            {user.highest_qualification || "Medical Doctor"}
                                         </p>
                                     </div>
-                                    <div className="space-y-2 sm:space-y-3">
-                                        <h4 className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                                            <Briefcase className="size-3.5 sm:size-4" />
-                                            Leadership Experience
-                                        </h4>
-                                        <p className="font-serif italic text-foreground text-sm sm:text-base leading-relaxed">
-                                            {user.leadership_experience_years || "0"} Years in
-                                            Leadership Positions
+
+                                    {/* Leadership Experience Card */}
+                                    <div className="p-4 sm:p-5 rounded-2xl bg-stone-50/80 border border-[#E8E4D8] space-y-3 relative overflow-hidden group hover:border-amber-500/30 hover:bg-amber-50/30 transition-all duration-300">
+                                        <div className="flex items-center gap-2 text-amber-700">
+                                            <div className="size-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                                                <Briefcase className="size-4" />
+                                            </div>
+                                            <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-800">
+                                                Leadership Experience
+                                            </h4>
+                                        </div>
+                                        <p className="font-serif italic text-foreground text-base sm:text-lg font-semibold leading-relaxed pl-1">
+                                            {user.leadership_experience_years || "1"} Years in Leadership Positions
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Key Skills */}
-                                <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4 border-t border-dashed border-[#E8E4D8]">
-                                    <h4 className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                                        <PieChart className="size-3.5 sm:size-4" />
-                                        Key Skills
-                                    </h4>
-                                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                                <div className="space-y-3 pt-4 border-t border-dashed border-[#E8E4D8]">
+                                    <div className="flex items-center gap-2">
+                                        <PieChart className="size-4 text-[#1B4332]" />
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1B4332]">
+                                            Key Skills & Competencies
+                                        </h4>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
                                         {user.key_skills?.length ? (
                                             user.key_skills.map((skill, i) => (
-                                                <Badge
+                                                <div
                                                     key={i}
-                                                    variant="secondary"
-                                                    className="bg-primary/5 text-primary border-primary/20 rounded-lg py-1 sm:py-1.5 px-2 sm:px-3 text-[11px] sm:text-xs font-medium"
+                                                    className="px-3.5 py-1.5 bg-[#1B4332]/5 border border-[#1B4332]/20 text-[#1B4332] font-semibold text-xs rounded-xl shadow-2xs hover:bg-[#1B4332] hover:text-white transition-all cursor-default flex items-center gap-1.5"
                                                 >
-                                                    {skill}
-                                                </Badge>
+                                                    <Sparkles className="size-3 text-emerald-600 group-hover:text-amber-300" />
+                                                    <span>{skill}</span>
+                                                </div>
                                             ))
                                         ) : (
-                                            <>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="bg-primary/5 text-primary border-primary/20 rounded-lg py-1 sm:py-1.5 px-2 sm:px-3 text-[11px] sm:text-xs font-medium"
+                                            ["Strategic Thinking", "Team Coaching", "Financial Planning"].map((skill, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="px-3.5 py-1.5 bg-[#1B4332]/5 border border-[#1B4332]/20 text-[#1B4332] font-semibold text-xs rounded-xl shadow-2xs hover:bg-[#1B4332] hover:text-white transition-all cursor-default flex items-center gap-1.5"
                                                 >
-                                                    Strategic Thinking
-                                                </Badge>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="bg-primary/5 text-primary border-primary/20 rounded-lg py-1 sm:py-1.5 px-2 sm:px-3 text-[11px] sm:text-xs font-medium"
-                                                >
-                                                    Team Coaching
-                                                </Badge>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="bg-primary/5 text-primary border-primary/20 rounded-lg py-1 sm:py-1.5 px-2 sm:px-3 text-[11px] sm:text-xs font-medium"
-                                                >
-                                                    Financial Planning
-                                                </Badge>
-                                            </>
+                                                    <Sparkles className="size-3 text-amber-500" />
+                                                    <span>{skill}</span>
+                                                </div>
+                                            ))
                                         )}
                                     </div>
                                 </div>
 
+                                {/* Official Certificate Section */}
+                                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#1B4332]/10 via-emerald-50/50 to-transparent border-2 border-[#1B4332]/20 space-y-3 relative overflow-hidden">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="size-10 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shadow-md shrink-0">
+                                                <Award className="size-5 text-amber-300" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-[#1B4332] flex items-center gap-1.5">
+                                                    Official Leadership Certificate
+                                                </h4>
+                                                <p className="text-xs text-muted-foreground font-serif italic">
+                                                    {certificateUrl
+                                                        ? "Issued & Verified by MasterBuilder Leadership Institute"
+                                                        : "No official certificate uploaded yet"}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                            {certificateUrl ? (
+                                                <>
+                                                    <a
+                                                        href={certificateUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1B4332] text-white font-bold text-xs shadow-md hover:bg-[#2D6A4F] transition-all"
+                                                    >
+                                                        <ExternalLink className="size-3.5" />
+                                                        View Certificate
+                                                    </a>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => certInputRef.current?.click()}
+                                                        disabled={isUploadingCert}
+                                                        className="text-xs text-[#1B4332] hover:bg-white/60 font-semibold"
+                                                    >
+                                                        Replace
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    onClick={() => certInputRef.current?.click()}
+                                                    disabled={isUploadingCert}
+                                                    className="h-9 px-4 rounded-xl bg-[#1B4332] text-white font-bold text-xs shadow-md hover:bg-[#2D6A4F] transition-all"
+                                                >
+                                                    {isUploadingCert ? (
+                                                        <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                                                    ) : (
+                                                        <FileText className="size-3.5 mr-1.5" />
+                                                    )}
+                                                    Upload Certificate
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Learning Goals */}
-                                <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4 border-t border-dashed border-[#E8E4D8]">
-                                    <h4 className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-wider text-primary flex items-center gap-2">
-                                        <Target className="size-3.5 sm:size-4" />
-                                        Learning Goals
-                                    </h4>
-                                    <div className="space-y-2 sm:space-y-2.5">
+                                <div className="space-y-3 pt-4 border-t border-dashed border-[#E8E4D8]">
+                                    <div className="flex items-center gap-2">
+                                        <Target className="size-4 text-[#1B4332]" />
+                                        <h4 className="text-[10px] font-black uppercase tracking-wider text-[#1B4332]">
+                                            Leadership Development Goals
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-2.5">
                                         {user.learning_goals?.length ? (
                                             user.learning_goals.map((goal, i) => (
                                                 <div
                                                     key={i}
-                                                    className="flex items-start gap-2 sm:gap-3 text-muted-foreground font-serif italic text-sm sm:text-base"
+                                                    className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 flex items-start gap-3 text-foreground font-serif italic text-sm sm:text-base"
                                                 >
-                                                    <CheckCircle2 className="size-4 sm:size-5 text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span className="break-words leading-relaxed">
+                                                    <div className="size-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                                        <CheckCircle2 className="size-3.5" />
+                                                    </div>
+                                                    <span className="break-words leading-relaxed text-[#1B4332]">
                                                         {goal}
                                                     </span>
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-muted-foreground font-serif italic text-sm sm:text-base leading-relaxed">
-                                                Enhance executive communication and master
-                                                operational excellence frameworks.
-                                            </p>
+                                            <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 flex items-start gap-3 text-foreground font-serif italic text-sm sm:text-base">
+                                                <div className="size-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                                                    <CheckCircle2 className="size-3.5" />
+                                                </div>
+                                                <span className="break-words leading-relaxed text-[#1B4332]">
+                                                    Enhance executive communication and master operational excellence frameworks.
+                                                </span>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -716,14 +874,14 @@ export default function UserProfileDetail({
 
                     {/* Bio Section (for non-fellows or if bio exists) */}
                     {!isFellow && user.bio && (
-                        <Card className="rounded-2xl sm:rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] border-2 border-[#E8E4D8] overflow-hidden shadow-sm">
-                            <CardHeader className="bg-muted/30 px-4 sm:px-5 md:px-6 py-3 sm:py-4">
+                        <Card className="rounded-2xl sm:rounded-[2rem] border-2 border-[#E8E4D8] bg-white overflow-hidden shadow-md">
+                            <CardHeader className="bg-gradient-to-r from-[#1B4332]/5 via-emerald-50/40 to-transparent px-5 py-4 border-b border-[#E8E4D8]">
                                 <CardTitle className="text-sm sm:text-base md:text-lg font-serif flex items-center gap-2">
-                                    <User className="size-4 sm:size-5 text-primary/60" />
+                                    <User className="size-4 sm:size-5 text-[#1B4332]" />
                                     About
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="px-4 sm:px-5 md:px-6 py-4 sm:py-5 md:py-6">
+                            <CardContent className="p-5 sm:p-6">
                                 <p className="font-serif italic text-muted-foreground text-sm sm:text-base leading-relaxed">
                                     {user.bio}
                                 </p>

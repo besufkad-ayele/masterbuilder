@@ -30,9 +30,11 @@ import {
     Award,
     ShieldCheck,
     ChevronDown,
+    ChevronUp,
     Menu,
     Check,
     Edit2,
+    Sparkles,
 } from "lucide-react";
 import { FellowProgressService, buildCompetencyPerformance } from "@/services/FellowProgressService";
 import { FellowService } from "@/services/FellowService";
@@ -155,235 +157,277 @@ function PortfolioView({
     portfolios,
     biLookup,
     compLookup,
+    competencyWaveMeta,
     onReview,
 }: {
     portfolios: Portfolio[];
     biLookup: Record<string, BehavioralIndicator>;
     compLookup: Record<string, Competency>;
+    competencyWaveMeta: Record<string, { waveNumber: number; waveName: string; displayOrder: number }>;
     onReview: (p: Portfolio) => void;
 }) {
-    // Local filter state
     const [compFilter, setCompFilter] = useState<string>("all");
-    const [biFilter, setBiFilter] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
 
-    // Base filter: map the status filter to one-or-more statuses
+    // Filter competencies strictly to fellow's active cohort
+    const cohortCompList = useMemo(() => {
+        const hasWaveScope = Object.keys(competencyWaveMeta || {}).length > 0;
+        if (hasWaveScope) {
+            return Object.values(compLookup).filter((c) => !!competencyWaveMeta[c.id]);
+        }
+        return Object.values(compLookup);
+    }, [compLookup, competencyWaveMeta]);
+
+    const cohortCompIds = useMemo(() => new Set(cohortCompList.map((c) => c.id)), [cohortCompList]);
+
+    // Map status filter to portfolio statuses
     const mapStatusToSet = (key: string) => {
         switch (key) {
-            case 'submitted':
-                return new Set(['submitted', 'under_review', 'resubmitted']);
-            case 'draft':
-                return new Set(['draft']);
-            case 'approved':
-                return new Set(['approved']);
-            case 'rejected':
-                return new Set(['rejected']);
-            case 'all':
+            case "submitted":
+                return new Set(["submitted", "under_review", "resubmitted"]);
+            case "approved":
+                return new Set(["approved"]);
+            case "rejected":
+                return new Set(["rejected"]);
+            case "all":
             default:
-                return null; // null means include all
+                return null;
         }
     };
 
     const statusSet = mapStatusToSet(statusFilter);
 
-    // Filter portfolios according to selected filters
+    // Filter portfolios: ONLY show items for fellow's cohort competencies
     const filtered = portfolios.filter((p) => {
+        const bi = biLookup[p.behavioral_indicator_id];
+        // Must belong to fellow's cohort competency
+        if (bi && !cohortCompIds.has(bi.competency_id)) return false;
+
         if (statusSet && !statusSet.has(p.status)) return false;
-        if (compFilter !== 'all') {
-            const bi = biLookup[p.behavioral_indicator_id];
+        if (compFilter !== "all") {
             if (!bi || bi.competency_id !== compFilter) return false;
         }
-        if (biFilter !== 'all' && p.behavioral_indicator_id !== biFilter) return false;
         return true;
     });
 
-    // Sort by competency title then BI title for predictable ordering
+    // Sort by wave, competency, then BI
     const sorted = filtered.sort((a, b) => {
         const biA = biLookup[a.behavioral_indicator_id];
         const biB = biLookup[b.behavioral_indicator_id];
-        const compA = biA ? compLookup[biA.competency_id]?.title || '' : '';
-        const compB = biB ? compLookup[biB.competency_id]?.title || '' : '';
+        const compA = biA ? compLookup[biA.competency_id]?.title || "" : "";
+        const compB = biB ? compLookup[biB.competency_id]?.title || "" : "";
         if (compA.toLowerCase() < compB.toLowerCase()) return -1;
         if (compA.toLowerCase() > compB.toLowerCase()) return 1;
-        const biTitleA = biA?.title || '';
-        const biTitleB = biB?.title || '';
+        const biTitleA = biA?.title || "";
+        const biTitleB = biB?.title || "";
         return biTitleA.toLowerCase().localeCompare(biTitleB.toLowerCase());
     });
 
+    // Portfolio Stats Overview
+    const totalCohortPortfolios = filtered.length;
+    const approvedCount = filtered.filter((p) => p.status === "approved").length;
+    const pendingCount = filtered.filter((p) => ["submitted", "under_review", "resubmitted"].includes(p.status)).length;
+    const rejectedCount = filtered.filter((p) => p.status === "rejected").length;
+    const avgScore =
+        filtered.filter((p) => typeof p.score === "number" && p.score > 0).length > 0
+            ? Math.round(
+                filtered
+                    .filter((p) => typeof p.score === "number" && p.score > 0)
+                    .reduce((sum, p) => sum + (p.score || 0), 0) /
+                filtered.filter((p) => typeof p.score === "number" && p.score > 0).length
+            )
+            : 0;
+
     const statusBadgeClass = (status: string) =>
         cn(
-            "rounded-full text-[9px] sm:text-[10px]",
+            "rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-wider",
             status === "approved"
-                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                ? "bg-emerald-100 text-emerald-800 border-emerald-200"
                 : status === "rejected"
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : status === "submitted"
-                        ? "bg-blue-100 text-blue-700 border-blue-200"
-                        : "bg-amber-100 text-amber-700 border-amber-200"
+                    ? "bg-red-100 text-red-800 border-red-200"
+                    : status === "submitted" || status === "under_review"
+                        ? "bg-blue-100 text-blue-800 border-blue-200"
+                        : "bg-amber-100 text-amber-800 border-amber-200"
         );
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-5 sm:space-y-6">
             <SectionHeader
                 icon={FileText}
-                title="Portfolio (Do Level)"
-                description="Review STAR submissions and evidence."
+                title="Portfolio Submissions (Do Phase)"
+                description="STAR method evidence submissions, status review, and 50-mark performance grading."
                 color="bg-emerald-100 text-emerald-700"
             />
-            <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
-                    <label className="text-[10px] font-black uppercase text-muted-foreground">Filter:</label>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
-                    >
-                        <option value="submitted">Submitted (Pending)</option>
-                        <option value="draft">Drafts</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="all">All</option>
-                    </select>
 
-                    <select
-                        value={compFilter}
-                        onChange={(e) => { setCompFilter(e.target.value); setBiFilter('all'); }}
-                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
-                    >
-                        <option value="all">All Competencies</option>
-                        {Object.values(compLookup).map((c) => (
-                            <option key={c.id} value={c.id}>{c.title}</option>
-                        ))}
-                    </select>
+            {/* Portfolio Summary Stats Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Approved</p>
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-emerald-950 mt-1">
+                        {approvedCount}
+                    </p>
+                    <p className="text-[10px] text-emerald-700/70 mt-1 font-medium">Approved Submissions</p>
+                </Card>
 
-                    <select
-                        value={biFilter}
-                        onChange={(e) => setBiFilter(e.target.value)}
-                        className="h-9 rounded-xl border-2 border-[#E8E4D8] bg-white px-3"
-                    >
-                        <option value="all">All Behavioral Indicators</option>
-                        {Object.values(biLookup)
-                            .filter((b) => compFilter === 'all' || b.competency_id === compFilter)
-                            .map((b) => (
-                                <option key={b.id} value={b.id}>{b.title}</option>
-                            ))}
-                    </select>
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Pending</p>
+                        <Clock className="size-4 text-blue-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-blue-950 mt-1">
+                        {pendingCount}
+                    </p>
+                    <p className="text-[10px] text-blue-700/70 mt-1 font-medium">Awaiting Evaluation</p>
+                </Card>
+
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-amber-100 bg-gradient-to-br from-amber-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Needs Revision</p>
+                        <AlertCircle className="size-4 text-amber-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-amber-950 mt-1">
+                        {rejectedCount}
+                    </p>
+                    <p className="text-[10px] text-amber-700/70 mt-1 font-medium">Revision Requested</p>
+                </Card>
+
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-[#1B4332]/20 bg-[#1B4332] text-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">Average Score</p>
+                        <Star className="size-4 text-amber-300" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-white mt-1">
+                        {avgScore} <span className="text-sm font-medium text-white/50">/ 50</span>
+                    </p>
+                    <p className="text-[10px] text-white/70 mt-1 font-medium">Do Phase Performance</p>
+                </Card>
+            </div>
+
+            {/* Controls & Filter Bar */}
+            <div className="bg-stone-50/90 border-2 border-[#E8E4D8] p-4 sm:p-5 rounded-2xl sm:rounded-3xl space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-[#1B4332]">
+                        <FileText className="size-5 text-primary" />
+                        <h4 className="text-xs sm:text-sm font-bold text-foreground">Filter Portfolio Submissions</h4>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        {/* Status Filter Selector */}
+                        <div className="relative">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="h-10 pl-3 pr-8 rounded-xl border-2 border-[#E8E4D8] bg-white text-xs font-bold text-foreground focus:border-[#1B4332] outline-none cursor-pointer appearance-none shadow-2xs"
+                            >
+                                <option value="all">All Statuses ({portfolios.length})</option>
+                                <option value="submitted">Pending Review</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Needs Revision</option>
+                            </select>
+                            <ChevronDown className="size-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+
+                        {/* Cohort Competencies Filter Dropdown */}
+                        <div className="relative min-w-[220px]">
+                            <select
+                                value={compFilter}
+                                onChange={(e) => setCompFilter(e.target.value)}
+                                className="w-full h-10 pl-3 pr-8 rounded-xl border-2 border-[#E8E4D8] bg-white text-xs font-bold text-foreground focus:border-[#1B4332] outline-none cursor-pointer appearance-none shadow-2xs"
+                            >
+                                <option value="all">All Cohort Competencies ({cohortCompList.length})</option>
+                                {cohortCompList.map((c) => {
+                                    const meta = competencyWaveMeta[c.id];
+                                    const prefix = meta ? `[W${meta.waveNumber}] ` : "";
+                                    return (
+                                        <option key={c.id} value={c.id}>
+                                            {prefix}{c.code} - {c.title}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            <ChevronDown className="size-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            {/* Portfolio Submissions Cards Grid */}
             {sorted.length === 0 ? (
-                <EmptyState message="No portfolios match the selected filters." />
+                <EmptyState message="No portfolio submissions found matching the selected cohort filters." />
             ) : (
-                <ResponsiveTableCard
-                    mobileCards={sorted.map((p) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {sorted.map((p, idx) => {
                         const bi = biLookup[p.behavioral_indicator_id];
                         const comp = bi ? compLookup[bi.competency_id] : null;
+                        const meta = comp ? competencyWaveMeta[comp.id] : null;
+                        const cleanBITitle = bi?.title ? bi.title.replace(/^BI\d+[\s:-]*/i, "") : "Behavioral Indicator";
+
                         return (
-                            <div
+                            <Card
                                 key={p.id}
-                                className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white space-y-3"
+                                className="rounded-3xl border-2 border-[#E8E4D8] hover:border-[#1B4332]/40 bg-white p-5 space-y-4 shadow-sm transition-all flex flex-col justify-between"
                             >
-                                <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                        <span className="text-[9px] font-black uppercase text-primary/60 block">
-                                            {comp?.title || "Unknown Comp"}
-                                        </span>
-                                        <span className="font-bold text-foreground text-sm leading-tight block mt-0.5">
-                                            {bi?.title || "Unknown BI"}
-                                        </span>
-                                        {p.star_result && (
-                                            <p className="text-xs text-[#1B4332]/60 mt-1 line-clamp-2">{p.star_result}</p>
-                                        )}
-                                        {typeof p.score !== 'undefined' && p.score !== null && (
-                                            <div className="mt-2">
-                                                <span className="text-[10px] font-black text-primary mr-2">Score:</span>
-                                                <span className="font-bold">{p.score}/50</span>
+                                <div className="space-y-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge className="bg-[#1B4332] text-white text-[9px] font-black uppercase tracking-wider">
+                                                    {meta ? `W${meta.waveNumber}:` : ""}{comp?.code || "COMP"}
+                                                </Badge>
+                                                <span className="text-[10px] font-bold text-muted-foreground truncate">
+                                                    {comp?.title}
+                                                </span>
                                             </div>
-                                        )}
+                                            <h4 className="font-serif font-bold text-foreground text-sm sm:text-base leading-tight line-clamp-2">
+                                                {cleanBITitle}
+                                            </h4>
+                                        </div>
+                                        <Badge className={statusBadgeClass(p.status)}>
+                                            {p.status.replace("_", " ")}
+                                        </Badge>
                                     </div>
-                                    <Badge className={statusBadgeClass(p.status)}>
-                                        {p.status.replace("_", " ")}
-                                    </Badge>
+
+                                    {/* STAR Method Snippet Preview */}
+                                    <div className="space-y-1.5 p-3 rounded-2xl bg-stone-50 border border-[#E8E4D8]">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-[#1B4332]">
+                                            STAR Result Summary
+                                        </p>
+                                        <p className="text-xs text-foreground/80 line-clamp-2 font-serif italic">
+                                            {p.star_result || p.star_action || p.star_situation || "— No STAR content provided —"}
+                                        </p>
+                                    </div>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onReview(p)}
-                                    className="rounded-full h-9 font-serif font-bold italic text-xs w-full"
-                                >
-                                    Review Submission
-                                </Button>
-                            </div>
+
+                                <div className="space-y-3 pt-3 border-t border-[#E8E4D8]">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                                            <ExternalLink className="size-3.5" />
+                                            <span className="font-semibold text-[11px]">
+                                                {p.evidence_urls?.length || 0} Evidence Link(s)
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-[10px] font-black text-muted-foreground uppercase">Score:</span>
+                                            <span className="font-serif font-black text-sm text-[#1B4332]">
+                                                {typeof p.score === "number" && p.score >= 0 ? `${p.score}/50` : "Not Graded"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        onClick={() => onReview(p)}
+                                        className="w-full h-11 rounded-2xl bg-[#1B4332] text-white font-serif font-bold text-xs shadow-sm hover:bg-[#1B4332]/90"
+                                    >
+                                        Review Submission & Grade
+                                    </Button>
+                                </div>
+                            </Card>
                         );
                     })}
-                >
-                    <table className="w-full text-left text-xs sm:text-sm">
-                        <thead className="bg-muted/50 border-b-2 border-[#E8E4D8]">
-                            <tr>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Competency / BI
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Result
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Status
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
-                                    Action
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#E8E4D8]">
-                            {sorted.map((p) => {
-                                const bi = biLookup[p.behavioral_indicator_id];
-                                const comp = bi ? compLookup[bi.competency_id] : null;
-                                return (
-                                    <tr
-                                        key={p.id}
-                                        className="hover:bg-muted/5 transition-colors"
-                                    >
-                                        <td className="px-4 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-black uppercase text-primary/60">
-                                                    {comp?.title || "Unknown Comp"}
-                                                </span>
-                                                <span className="font-bold text-foreground line-clamp-1 text-sm">
-                                                    {bi?.title || "Unknown BI"}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm text-foreground line-clamp-2">
-                                                    {p.star_result || '—'}
-                                                </span>
-                                                {typeof p.score !== 'undefined' && p.score !== null && (
-                                                    <span className="text-[10px] text-muted-foreground mt-1">Score: {p.score}/50</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <Badge className={statusBadgeClass(p.status)}>
-                                                {p.status.replace("_", " ")}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-4 text-right">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => onReview(p)}
-                                                className="rounded-full h-8 font-serif font-bold italic text-xs"
-                                            >
-                                                Review
-                                            </Button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </ResponsiveTableCard>
+                </div>
             )}
         </div>
     );
@@ -457,19 +501,21 @@ function PortfolioReviewPanel({
             {/* STAR Content Display */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {[
-                    { label: "Situation", content: portfolio.star_situation },
-                    { label: "Task", content: portfolio.star_task },
-                    { label: "Action", content: portfolio.star_action },
-                    { label: "Result", content: portfolio.star_result },
+                    { label: "Situation", content: portfolio.star_situation, color: "border-indigo-200 bg-indigo-50/40 text-indigo-950", badge: "bg-indigo-100 text-indigo-800" },
+                    { label: "Task", content: portfolio.star_task, color: "border-amber-200 bg-amber-50/40 text-amber-950", badge: "bg-amber-100 text-amber-800" },
+                    { label: "Action", content: portfolio.star_action, color: "border-emerald-200 bg-emerald-50/40 text-emerald-950", badge: "bg-emerald-100 text-emerald-800" },
+                    { label: "Result", content: portfolio.star_result, color: "border-primary/30 bg-primary/5 text-primary-950", badge: "bg-primary text-white" },
                 ].map((s) => (
                     <div
                         key={s.label}
-                        className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-muted/30 border border-[#E8E4D8]"
+                        className={cn("p-4 rounded-2xl border-2 space-y-1.5", s.color)}
                     >
-                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 sm:mb-2">
-                            {s.label}
-                        </p>
-                        <p className="text-xs sm:text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                        <div className="flex items-center justify-between">
+                            <span className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md", s.badge)}>
+                                {s.label}
+                            </span>
+                        </div>
+                        <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words font-serif italic pt-1">
                             {s.content || "N/A"}
                         </p>
                     </div>
@@ -478,9 +524,9 @@ function PortfolioReviewPanel({
 
             {/* Evidence Links */}
             {portfolio.evidence_urls && portfolio.evidence_urls.length > 0 && (
-                <div className="space-y-2 sm:space-y-3">
-                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        Evidence Links / Files
+                <div className="space-y-2.5 pt-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">
+                        Evidence Attachments ({portfolio.evidence_urls.length})
                     </p>
                     <div className="flex flex-wrap gap-2">
                         {portfolio.evidence_urls.map((url, i) => (
@@ -489,103 +535,111 @@ function PortfolioReviewPanel({
                                 href={url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="flex items-center gap-2 px-3 py-2 bg-white border-2 border-[#E8E4D8] rounded-xl text-[10px] sm:text-xs font-bold hover:border-primary transition-all group"
+                                className="flex items-center gap-2 px-3.5 py-2.5 bg-white border-2 border-[#E8E4D8] rounded-xl text-xs font-bold text-[#1B4332] hover:border-primary hover:bg-emerald-50/50 transition-all shadow-2xs group"
                             >
-                                <ExternalLink className="size-3 group-hover:text-primary shrink-0" />
-                                <span className="truncate">Evidence {i + 1}</span>
+                                <ExternalLink className="size-3.5 group-hover:text-primary shrink-0" />
+                                <span className="truncate">Evidence File #{i + 1}</span>
                             </a>
                         ))}
                     </div>
                 </div>
             )}
 
-            {/* Admin Input */}
-            <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 border-t border-dashed border-[#E8E4D8]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+            {/* Admin Review Input Form */}
+            <div className="space-y-4 pt-4 border-t-2 border-dashed border-[#E8E4D8]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary px-1">
-                            Review Status
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332] px-1">
+                            Review Decision Status
                         </label>
-                        <select
-                            className="w-full h-11 px-3 sm:px-4 rounded-xl border-2 border-[#E8E4D8] focus:border-primary outline-none bg-white font-serif font-bold italic text-sm appearance-none"
-                            value={status}
-                            onChange={(e) =>
-                                setStatus(e.target.value as PortfolioStatus)
-                            }
-                        >
-                            <option value="submitted">Submitted (Pending)</option>
-                            <option value="under_review">Under Review</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Needs Revision / Rejected</option>
-                        </select>
+                        <div className="relative">
+                            <select
+                                className="w-full h-11 px-4 rounded-xl border-2 border-[#E8E4D8] focus:border-[#1B4332] outline-none bg-white font-serif font-bold text-xs sm:text-sm text-foreground appearance-none cursor-pointer shadow-2xs"
+                                value={status}
+                                onChange={(e) =>
+                                    setStatus(e.target.value as PortfolioStatus)
+                                }
+                            >
+                                <option value="submitted">Submitted (Pending Review)</option>
+                                <option value="under_review">Under Review</option>
+                                <option value="approved">Approved (Pass)</option>
+                                <option value="rejected">Needs Revision / Rejected</option>
+                            </select>
+                            <ChevronDown className="size-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary px-1">
-                            Performance Score (0-50)
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332] px-1">
+                            Do Performance Score (0 to 50 Marks)
                             <RequiredMark className="ml-0.5" />
                         </label>
-                        <Input
-                            type="number"
-                            min="0"
-                            max="50"
-                            value={score}
-                            onChange={(e) => {
-                                const v = e.target.value;
-                                const n = Number(v);
-                                if (v === "") {
-                                    setScore(0);
-                                    setScoreError("Score is required (0-50)");
-                                    return;
-                                }
-                                if (Number.isNaN(n)) {
-                                    setScoreError("Invalid number");
-                                } else if (n < 0 || n > 50) {
-                                    setScoreError("Score must be between 0 and 50");
-                                } else {
-                                    setScoreError(null);
-                                }
-                                setScore(n);
-                            }}
-                            className="rounded-xl border-2 border-[#E8E4D8] h-11"
-                        />
+                        <div className="relative">
+                            <Input
+                                type="number"
+                                min="0"
+                                max="50"
+                                value={score}
+                                onChange={(e) => {
+                                    const v = e.target.value;
+                                    const n = Number(v);
+                                    if (v === "") {
+                                        setScore(0);
+                                        setScoreError("Score is required (0-50)");
+                                        return;
+                                    }
+                                    if (Number.isNaN(n)) {
+                                        setScoreError("Invalid number");
+                                    } else if (n < 0 || n > 50) {
+                                        setScoreError("Score must be between 0 and 50");
+                                    } else {
+                                        setScoreError(null);
+                                    }
+                                    setScore(n);
+                                }}
+                                className="rounded-xl border-2 border-[#E8E4D8] h-11 font-serif font-bold text-sm pr-12"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                                / 50
+                            </span>
+                        </div>
                         {scoreError && (
-                            <p className="text-[10px] text-red-600 mt-1">{scoreError}</p>
+                            <p className="text-[10px] text-red-600 mt-1 font-bold">{scoreError}</p>
                         )}
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-primary px-1">
-                        Facilitator Feedback
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[#1B4332] px-1">
+                        Facilitator Feedback & Remarks
                     </label>
                     <Textarea
                         value={feedback}
                         onChange={(e) => setFeedback(e.target.value)}
-                        className="rounded-xl sm:rounded-2xl border-2 border-[#E8E4D8] min-h-[100px] sm:min-h-[120px] focus:border-primary text-sm"
-                        placeholder="Provide detailed feedback for the fellow..."
+                        className="rounded-2xl border-2 border-[#E8E4D8] min-h-[110px] focus:border-[#1B4332] text-xs sm:text-sm font-serif p-3.5"
+                        placeholder="Provide constructve feedback for the fellow..."
                     />
                 </div>
 
-                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
                     <Button
                         variant="outline"
-                        className="rounded-full w-full sm:w-auto h-10 sm:h-11"
+                        className="rounded-2xl w-full sm:w-auto h-11 px-6 font-bold border-[#E8E4D8]"
                         onClick={onClose}
                     >
-                        Discard
+                        Cancel / Discard
                     </Button>
                     <Button
-                        className="rounded-full px-6 sm:px-8 shadow-lg shadow-primary/20 w-full sm:w-auto h-10 sm:h-11"
+                        className="rounded-2xl px-8 shadow-md bg-[#1B4332] text-white w-full sm:w-auto h-11 font-bold hover:bg-[#1B4332]/90"
                         onClick={handleSubmit}
                         disabled={isSaving || !!scoreError}
                     >
                         {isSaving ? (
                             <>
                                 <Loader2 className="size-4 animate-spin mr-2" />
-                                Saving...
+                                Saving Evaluation...
                             </>
                         ) : (
-                            "Save Review"
+                            "Save Portfolio Evaluation"
                         )}
                     </Button>
                 </div>
@@ -608,48 +662,112 @@ function QuizView({
 }) {
     const knowProgress = progress.filter((p) => p.phase_type === "know");
 
+    const totalQuizzes = knowProgress.length;
+    const passedCount = knowProgress.filter((p) => (p.know_score ?? 0) >= 75).length;
+    const pendingCount = totalQuizzes - passedCount;
+    const avgScore =
+        totalQuizzes > 0
+            ? Math.round(knowProgress.reduce((sum, p) => sum + (p.know_score ?? 0), 0) / totalQuizzes)
+            : 0;
+
     if (knowProgress.length === 0)
         return <EmptyState message="No quizzes completed yet." />;
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-5 sm:space-y-6">
             <SectionHeader
                 icon={Brain}
-                title="Quiz (Know Level)"
-                description="Assessment scores for knowledge modules."
+                title="Quizzes & Knowledge Assessments (Know Phase)"
+                description="Comprehensive breakdown of knowledge quiz attempts, pass/fail thresholds, and mastery scores."
                 color="bg-blue-100 text-blue-700"
             />
+
+            {/* Quiz Summary Stats Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Quiz Average</p>
+                        <Brain className="size-4 text-blue-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-blue-950 mt-1">
+                        {avgScore}%
+                    </p>
+                    <p className="text-[10px] text-blue-700/70 mt-1 font-medium">Know Phase Average</p>
+                </Card>
+
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Quizzes Passed</p>
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-emerald-950 mt-1">
+                        {passedCount} <span className="text-sm text-emerald-700/60 font-normal">/ {totalQuizzes}</span>
+                    </p>
+                    <p className="text-[10px] text-emerald-700/70 mt-1 font-medium">Score ≥ 75%</p>
+                </Card>
+
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-amber-100 bg-gradient-to-br from-amber-50/60 to-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Needs Review</p>
+                        <Clock className="size-4 text-amber-600" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-amber-950 mt-1">
+                        {pendingCount}
+                    </p>
+                    <p className="text-[10px] text-amber-700/70 mt-1 font-medium">Below 75% Threshold</p>
+                </Card>
+
+                <Card className="p-4 sm:p-5 rounded-2xl border-2 border-[#1B4332]/20 bg-[#1B4332] text-white shadow-xs">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">Total Assessments</p>
+                        <BookOpen className="size-4 text-amber-300" />
+                    </div>
+                    <p className="text-2xl sm:text-3xl font-serif font-black text-white mt-1">
+                        {totalQuizzes}
+                    </p>
+                    <p className="text-[10px] text-white/70 mt-1 font-medium">Attempt Logs Tracked</p>
+                </Card>
+            </div>
+
             <ResponsiveTableCard
                 mobileCards={knowProgress.map((p) => {
                     const bi = biLookup[p.behavioral_indicator_id];
                     const comp = bi ? compLookup[bi.competency_id] : null;
-                    const isPassed = (p.know_score ?? 0) >= 75;
+                    const score = p.know_score ?? 0;
+                    const isPassed = score >= 75;
+                    const cleanBITitle = bi?.title ? bi.title.replace(/^BI\d+[\s:-]*/i, "") : "Behavioral Indicator";
+
                     return (
                         <div
                             key={p.id}
-                            className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white"
+                            className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white space-y-3 shadow-xs"
                         >
-                            <div className="flex items-start justify-between gap-3 mb-2">
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-[9px] font-black uppercase text-primary/60 block">
-                                        {comp?.title || "Unknown Comp"}
-                                    </span>
-                                    <span className="font-bold text-foreground text-sm leading-tight block mt-0.5">
-                                        {bi?.title || "Unknown BI"}
-                                    </span>
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0 space-y-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <Badge className="bg-[#1B4332] text-white text-[9px] font-black uppercase">
+                                            {comp?.code || "COMP"}
+                                        </Badge>
+                                        <span className="text-[10px] font-bold text-muted-foreground truncate">
+                                            {comp?.title}
+                                        </span>
+                                    </div>
+                                    <h5 className="font-serif font-bold text-foreground text-sm leading-tight">
+                                        {cleanBITitle}
+                                    </h5>
                                 </div>
                             </div>
                             <div className="flex items-center justify-between pt-2 border-t border-[#E8E4D8]">
-                                <span className="font-black text-lg">
-                                    {p.know_score ?? 0}%
+                                <span className="font-serif font-black text-xl text-[#1B4332]">
+                                    {score}%
                                 </span>
                                 {isPassed ? (
-                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 rounded-full text-[10px]">
+                                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 rounded-full text-[10px] font-black uppercase">
                                         Passed
                                     </Badge>
                                 ) : (
-                                    <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full text-[10px]">
-                                        Pending
+                                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 rounded-full text-[10px] font-black uppercase">
+                                        Pending / Retake
                                     </Badge>
                                 )}
                             </div>
@@ -657,17 +775,17 @@ function QuizView({
                     );
                 })}
             >
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/50 border-b-2 border-[#E8E4D8]">
+                <table className="w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-stone-50 border-b-2 border-[#E8E4D8]">
                         <tr>
-                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                Competency / BI
+                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-[#1B4332]">
+                                Competency / Behavioral Indicator
                             </th>
-                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                Score
+                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-center">
+                                Assessment Score
                             </th>
                             <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
-                                Result
+                                Status
                             </th>
                         </tr>
                     </thead>
@@ -675,32 +793,33 @@ function QuizView({
                         {knowProgress.map((p) => {
                             const bi = biLookup[p.behavioral_indicator_id];
                             const comp = bi ? compLookup[bi.competency_id] : null;
-                            const isPassed = (p.know_score ?? 0) >= 75;
+                            const score = p.know_score ?? 0;
+                            const isPassed = score >= 75;
+                            const cleanBITitle = bi?.title ? bi.title.replace(/^BI\d+[\s:-]*/i, "") : "Behavioral Indicator";
+
                             return (
-                                <tr key={p.id} className="hover:bg-muted/5">
-                                    <td className="px-4 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black uppercase text-primary/60">
-                                                {comp?.title || "Unknown Comp"}
+                                <tr key={p.id} className="hover:bg-stone-50/50 transition-colors">
+                                    <td className="px-4 py-3.5">
+                                        <div className="flex flex-col space-y-0.5">
+                                            <span className="text-[10px] font-black uppercase text-[#1B4332]/70">
+                                                {comp?.code} - {comp?.title || "Unknown Competency"}
                                             </span>
-                                            <span className="font-bold text-foreground line-clamp-1 text-sm">
-                                                {bi?.title || "Unknown BI"}
+                                            <span className="font-bold text-foreground text-sm">
+                                                {cleanBITitle}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <span className="font-black text-lg">
-                                            {p.know_score ?? 0}%
-                                        </span>
+                                    <td className="px-4 py-3.5 text-center font-serif font-black text-base text-[#1B4332]">
+                                        {score}%
                                     </td>
-                                    <td className="px-4 py-4 text-right">
+                                    <td className="px-4 py-3.5 text-right">
                                         {isPassed ? (
-                                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 rounded-full text-[10px]">
+                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 rounded-full text-[10px] font-black uppercase">
                                                 Passed
                                             </Badge>
                                         ) : (
-                                            <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full text-[10px]">
-                                                Pending
+                                            <Badge className="bg-amber-100 text-amber-800 border-amber-200 rounded-full text-[10px] font-black uppercase">
+                                                Pending / Retake
                                             </Badge>
                                         )}
                                     </td>
@@ -715,7 +834,7 @@ function QuizView({
 }
 
 /**
- * BELIEVE VIEW
+ * BELIEVE VIEW (Mindsets & Grounding)
  */
 function BelieveView({
     progress,
@@ -730,167 +849,189 @@ function BelieveView({
 }) {
     const believeProgress = progress.filter((p) => p.phase_type === "believe");
 
-    const missingBIs = believeProgress.filter(
-        (p) => !biLookup[p.behavioral_indicator_id]
-    );
-    const hasMissingData = missingBIs.length > 0;
+    const totalMindsets = believeProgress.length;
+    const lockedCount = believeProgress.filter((p) => p.believe_passed).length;
+    const lockPercentage = totalMindsets > 0 ? Math.round((lockedCount / totalMindsets) * 100) : 0;
+
+    // Group mindsets by Competency for rich visual presentation
+    const groupedMindsets = useMemo(() => {
+        const map: Record<string, { comp: Competency | null; items: typeof believeProgress }> = {};
+
+        believeProgress.forEach((p) => {
+            const bi = biLookup[p.behavioral_indicator_id];
+            const compId = bi?.competency_id || "unknown";
+            const comp = bi ? compLookup[compId] : null;
+
+            if (!map[compId]) {
+                map[compId] = { comp, items: [] };
+            }
+            map[compId].items.push(p);
+        });
+
+        return Object.values(map);
+    }, [believeProgress, biLookup, compLookup]);
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-6 sm:space-y-8">
             <SectionHeader
                 icon={Heart}
-                title="Believe Level"
-                description="Engagement with foundation and mindsets."
+                title="Believe Phase (Mindsets & Grounding)"
+                description="Engagement with foundation grounding modules, leadership mindsets, and gatekeeper reflections."
                 color="bg-purple-100 text-purple-700"
             />
 
-            {/* Debug Alert */}
-            {hasMissingData && (
-                <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-amber-50 border-2 border-amber-200 flex items-start gap-2 sm:gap-3">
-                    <AlertCircle className="size-4 sm:size-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-amber-900">
-                            Data Sync Issue Detected
+            {/* Grounding & Mindset Gauges */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                {/* 1. Believe Lock-in Donut Card */}
+                <Card className="p-6 rounded-3xl border-2 border-purple-100 bg-gradient-to-br from-purple-50/80 via-white to-purple-50/30 shadow-sm flex items-center justify-between gap-4">
+                    <div className="space-y-2 min-w-0">
+                        <Badge className="bg-purple-600 text-white text-[9px] font-black uppercase tracking-wider">
+                            Believe Lock-In
+                        </Badge>
+                        <h4 className="font-serif font-black text-xl text-purple-950">
+                            Mindset Mastery
+                        </h4>
+                        <p className="text-xs text-purple-700 font-medium">
+                            {lockedCount} of {totalMindsets} Mindsets Verified
                         </p>
-                        <p className="text-[10px] sm:text-xs text-amber-700 mt-1">
-                            {missingBIs.length} behavioral indicator(s) referenced in
-                            progress records are not found in the system.
+                    </div>
+                    <div className="shrink-0">
+                        <CompetencyPieChart percentage={lockPercentage} size={90} strokeWidth={9} label="Lock-In" />
+                    </div>
+                </Card>
+
+                {/* 2. Foundation Grounding Module Score */}
+                <Card className="p-6 rounded-3xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50/30 shadow-sm flex items-center justify-between gap-4">
+                    <div className="space-y-2 min-w-0">
+                        <Badge className="bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider">
+                            Grounding Gatekeeper
+                        </Badge>
+                        <h4 className="font-serif font-black text-xl text-emerald-950 truncate">
+                            Introductory Grounding
+                        </h4>
+                        <p className="text-xs text-emerald-700 font-medium">Foundation Alignment Score</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <span className="font-serif font-black text-3xl text-emerald-800">
+                            {groundingResult?.score ?? 0}%
+                        </span>
+                        <Badge className="block mt-1 bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                            Passed ✓
+                        </Badge>
+                    </div>
+                </Card>
+
+                {/* 3. Mindset Prerequisites Banner */}
+                <Card className="p-6 rounded-3xl border-2 border-[#1B4332]/20 bg-[#1B4332] text-white shadow-sm flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                        <Badge className="bg-amber-400 text-[#1B4332] text-[9px] font-black uppercase">
+                            Prerequisites
+                        </Badge>
+                        <Sparkles className="size-5 text-amber-300" />
+                    </div>
+                    <div>
+                        <h4 className="font-serif font-black text-lg text-white">
+                            Know-Phase Unlock
+                        </h4>
+                        <p className="text-xs text-white/80 font-medium mt-0.5">
+                            Locking mindsets enables fellow progression into knowledge quizzes.
                         </p>
-                        <details className="mt-2">
-                            <summary className="text-[10px] sm:text-xs font-bold text-amber-800 cursor-pointer hover:underline">
-                                Show Missing IDs
-                            </summary>
-                            <div className="mt-2 p-2 bg-white rounded-lg border border-amber-200 overflow-x-auto">
-                                <code className="text-[9px] sm:text-[10px] text-amber-900 break-all">
-                                    {missingBIs
-                                        .map((p) => p.behavioral_indicator_id)
-                                        .join(", ")}
-                                </code>
-                            </div>
-                        </details>
+                    </div>
+                </Card>
+            </div>
+
+            {/* Grouped Competencies & Mindset Cards */}
+            {groupedMindsets.length > 0 ? (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between px-1">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">
+                            Mindset Reflections by Competency ({groupedMindsets.length})
+                        </h4>
+                        <span className="text-xs font-bold text-muted-foreground">
+                            {lockedCount} Locked • {totalMindsets - lockedCount} Pending
+                        </span>
+                    </div>
+
+                    <div className="space-y-6">
+                        {groupedMindsets.map((g, idx) => {
+                            const compTitle = g.comp ? g.comp.title : "Program Competency";
+                            const compCode = g.comp ? g.comp.code : `COMP-${idx + 1}`;
+                            const compLocked = g.items.filter((i) => i.believe_passed).length;
+                            const compTotal = g.items.length;
+
+                            return (
+                                <Card key={idx} className="p-5 sm:p-6 rounded-3xl border-2 border-[#E8E4D8] bg-white space-y-4 shadow-xs">
+                                    {/* Competency Header */}
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E4D8]">
+                                        <div className="flex items-center gap-3">
+                                            <Badge className="bg-[#1B4332] text-white text-xs font-black uppercase px-2.5 py-1">
+                                                {compCode}
+                                            </Badge>
+                                            <h5 className="font-serif font-black text-base sm:text-lg text-[#1B4332]">
+                                                {compTitle}
+                                            </h5>
+                                        </div>
+                                        <Badge className="bg-purple-100 text-purple-900 border-purple-200 text-xs font-bold px-3 py-1 rounded-full">
+                                            {compLocked} of {compTotal} Mindsets Locked
+                                        </Badge>
+                                    </div>
+
+                                    {/* Mindset Cards Grid */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                                        {g.items.map((p) => {
+                                            const bi = biLookup[p.behavioral_indicator_id];
+                                            const cleanBITitle = bi?.title
+                                                ? bi.title.replace(/^BI\d+[\s:-]*/i, "")
+                                                : "Behavioral Indicator";
+
+                                            return (
+                                                <div
+                                                    key={p.id}
+                                                    className={cn(
+                                                        "p-4 rounded-2xl border-2 transition-all flex items-start justify-between gap-3",
+                                                        p.believe_passed
+                                                            ? "border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white"
+                                                            : "border-amber-200 bg-gradient-to-br from-amber-50/50 to-white"
+                                                    )}
+                                                >
+                                                    <div className="space-y-1.5 min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            {p.believe_passed ? (
+                                                                <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                                                            ) : (
+                                                                <Clock className="size-4 text-amber-600 shrink-0" />
+                                                            )}
+                                                            <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground truncate">
+                                                                Gatekeeper Indicator
+                                                            </span>
+                                                        </div>
+                                                        <h6 className="font-serif font-bold text-sm text-foreground leading-snug">
+                                                            {cleanBITitle}
+                                                        </h6>
+                                                    </div>
+
+                                                    <div className="shrink-0 pt-0.5">
+                                                        {p.believe_passed ? (
+                                                            <Badge className="bg-emerald-600 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full shadow-xs">
+                                                                Locked In ✓
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-amber-500 text-white text-[9px] font-black uppercase px-2.5 py-1 rounded-full shadow-xs">
+                                                                Pending ⏳
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </Card>
+                            );
+                        })}
                     </div>
                 </div>
-            )}
-
-            {/* Grounding result */}
-            {groundingResult && (
-                <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-purple-50 to-white border-2 border-purple-100 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                            <div className="size-10 sm:size-12 rounded-xl sm:rounded-2xl bg-white shadow-sm flex items-center justify-center text-purple-600 shrink-0">
-                                <BookOpen className="size-5 sm:size-6" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-purple-500">
-                                    Grounding Module
-                                </p>
-                                <h4 className="font-serif font-black text-sm sm:text-base md:text-lg truncate">
-                                    Introductory Grounding
-                                </h4>
-                            </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                Score
-                            </p>
-                            <p className="text-xl sm:text-2xl font-black text-purple-700">
-                                {groundingResult.score ?? 0}%
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {believeProgress.length > 0 ? (
-                <ResponsiveTableCard
-                    mobileCards={believeProgress.map((p) => {
-                        const bi = biLookup[p.behavioral_indicator_id];
-                        const comp = bi ? compLookup[bi.competency_id] : null;
-                        return (
-                            <div
-                                key={p.id}
-                                className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white"
-                            >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <span className="font-bold text-foreground text-sm block">
-                                            {bi?.title ||
-                                                `BI ID: ${p.behavioral_indicator_id.slice(0, 8)}...`}
-                                        </span>
-                                        {!bi && (
-                                            <span className="text-[10px] text-amber-600 italic mt-0.5 block">
-                                                Data not found
-                                            </span>
-                                        )}
-                                        <span className="text-[10px] text-muted-foreground mt-1 block">
-                                            {comp?.title || "N/A"}
-                                        </span>
-                                    </div>
-                                    <div className="shrink-0">
-                                        {p.believe_passed ? (
-                                            <CheckCircle2 className="size-5 text-emerald-500" />
-                                        ) : (
-                                            <Clock className="size-5 text-amber-500" />
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                >
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-muted/50 border-b-2 border-[#E8E4D8]">
-                            <tr>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Behavioral Indicator
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Competency
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
-                                    Gatekeeper
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#E8E4D8]">
-                            {believeProgress.map((p) => {
-                                const bi = biLookup[p.behavioral_indicator_id];
-                                const comp = bi ? compLookup[bi.competency_id] : null;
-                                return (
-                                    <tr key={p.id} className="hover:bg-muted/5">
-                                        <td className="px-4 py-4">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-foreground text-sm">
-                                                    {bi?.title ||
-                                                        `BI ID: ${p.behavioral_indicator_id}`}
-                                                </span>
-                                                {!bi && (
-                                                    <span className="text-[10px] text-amber-600 italic mt-1">
-                                                        Data not found - may need to refresh
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <span className="text-xs font-medium text-muted-foreground">
-                                                {comp?.title || "N/A"}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-right">
-                                            {p.believe_passed ? (
-                                                <CheckCircle2 className="size-5 text-emerald-500 ml-auto" />
-                                            ) : (
-                                                <Clock className="size-5 text-amber-500 ml-auto" />
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </ResponsiveTableCard>
             ) : (
-                <EmptyState message="No believe phases started yet." />
+                <EmptyState message="No believe phases started yet for this fellow." />
             )}
         </div>
     );
@@ -1225,7 +1366,81 @@ function DetailExamView({
 }
 
 /**
- * COMPETENCY LEVEL VIEW
+ * REUSABLE CIRCULAR PIE/DONUT CHART FOR COMPETENCY MASTERY
+ */
+function CompetencyPieChart({
+    percentage,
+    size = 140,
+    strokeWidth = 14,
+    label = "Mastery",
+}: {
+    percentage: number;
+    size?: number;
+    strokeWidth?: number;
+    label?: string;
+}) {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (Math.min(100, Math.max(0, percentage)) / 100) * circumference;
+
+    const colorClass =
+        percentage >= 75
+            ? "stroke-[#1B4332]"
+            : percentage >= 50
+                ? "stroke-amber-500"
+                : "stroke-indigo-600";
+
+    const isSmall = size < 75;
+    const isMedium = size >= 75 && size < 110;
+
+    return (
+        <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="transform -rotate-90">
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    className="stroke-stone-200/80"
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                />
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    className={cn("transition-all duration-1000 ease-out", colorClass)}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    fill="transparent"
+                />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-0.5 pointer-events-none">
+                <span
+                    className={cn(
+                        "font-serif font-black text-[#1B4332] leading-none tracking-tighter",
+                        isSmall
+                            ? "text-[11px]"
+                            : isMedium
+                                ? "text-base"
+                                : "text-2xl sm:text-3xl"
+                    )}
+                >
+                    {percentage}%
+                </span>
+                {label && !isSmall && (
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mt-1">
+                        {label}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * COMPETENCY LEVEL MATRIX VIEW
  */
 function CompetencyView({
     progress,
@@ -1234,6 +1449,7 @@ function CompetencyView({
     portfolios,
     examAttempts,
     groundingResults,
+    competencyWaveMeta,
 }: {
     progress: PhaseProgress[];
     biLookup: Record<string, BehavioralIndicator>;
@@ -1241,11 +1457,40 @@ function CompetencyView({
     portfolios: Portfolio[];
     examAttempts: ExamAttempt[];
     groundingResults: GroundingResult[];
+    competencyWaveMeta: Record<string, { waveNumber: number; waveName: string; displayOrder: number }>;
 }) {
+    const behavioralIndicators = useMemo(() => Object.values(biLookup), [biLookup]);
+    const groundingScore = useMemo(() => groundingResults[0]?.score || 0, [groundingResults]);
+
+    // Cohort-filtered competency list
+    const cohortCompList = useMemo(() => {
+        const hasWaveScope = Object.keys(competencyWaveMeta || {}).length > 0;
+        let list = Object.values(compLookup);
+        if (hasWaveScope) {
+            list = list.filter((c) => !!competencyWaveMeta[c.id]);
+        }
+        return list.sort((a, b) => {
+            const metaA = competencyWaveMeta[a.id];
+            const metaB = competencyWaveMeta[b.id];
+            if (metaA && metaB && metaA.waveNumber !== metaB.waveNumber) {
+                return metaA.waveNumber - metaB.waveNumber;
+            }
+            return (metaA?.displayOrder || 0) - (metaB?.displayOrder || 0);
+        });
+    }, [compLookup, competencyWaveMeta]);
+
+    // Selected competency state
+    const [selectedCompId, setSelectedCompId] = useState<string>("");
+
+    useEffect(() => {
+        if (cohortCompList.length > 0 && (!selectedCompId || !cohortCompList.some((c) => c.id === selectedCompId))) {
+            setSelectedCompId(cohortCompList[0].id);
+        }
+    }, [cohortCompList, selectedCompId]);
+
+    // Compute detailed performance for all cohort competencies
     const compStats = useMemo(() => {
-        const behavioralIndicators = Object.values(biLookup);
-        const groundingScore = groundingResults[0]?.score || 0;
-        return Object.values(compLookup).map((comp) => {
+        return cohortCompList.map((comp) => {
             const performance = buildCompetencyPerformance(comp, {
                 progress,
                 portfolios,
@@ -1254,65 +1499,288 @@ function CompetencyView({
                 groundingScoreOutOf10: groundingScore,
                 biLookup,
             });
-            return { comp, avg: performance.compositeScore };
+            const meta = competencyWaveMeta[comp.id];
+            return {
+                comp,
+                meta,
+                performance,
+                avg: performance.compositeScore,
+            };
         });
     }, [
+        cohortCompList,
         progress,
-        biLookup,
-        compLookup,
         portfolios,
+        behavioralIndicators,
         examAttempts,
-        groundingResults,
+        groundingScore,
+        biLookup,
+        competencyWaveMeta,
     ]);
 
+    const activeStat = useMemo(() => {
+        return compStats.find((s) => s.comp.id === selectedCompId) || compStats[0];
+    }, [compStats, selectedCompId]);
+
     if (compStats.length === 0)
-        return <EmptyState message="No competency data tracked yet." />;
+        return <EmptyState message="No competency data tracked for this cohort." />;
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-6 sm:space-y-8">
             <SectionHeader
                 icon={BookOpen}
-                title="Competency Level"
-                description="Live proficiency across leadership domains."
+                title="Competency Matrix & Pie Chart Analytics"
+                description="Interactive competency selection, completion percentage pie charts, and granular BI performance breakdown."
                 color="bg-teal-100 text-teal-700"
             />
-            <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                {compStats.map((s) => (
-                    <Card
-                        key={s.comp.id}
-                        className="rounded-2xl sm:rounded-3xl border-2 border-[#E8E4D8] overflow-hidden"
-                    >
-                        <CardHeader className="p-3.5 sm:p-4 md:p-5 pb-2">
-                            <div className="flex items-center justify-between gap-2">
-                                <h4 className="font-serif font-black text-sm sm:text-base md:text-lg truncate pr-2 flex-1 min-w-0">
-                                    {s.comp.title}
-                                </h4>
-                                <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full text-xs sm:text-sm font-black italic shrink-0">
-                                    {s.avg}%
-                                </Badge>
-                            </div>
-                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                {s.comp.category?.toUpperCase() || "Leadership"} •
-                                Level: {s.comp.level}
-                            </p>
-                        </CardHeader>
-                        <CardContent className="px-3.5 sm:px-4 md:px-5 pb-3.5 sm:pb-4 md:pb-5 pt-0">
-                            <div className="mt-3 h-2.5 sm:h-3 bg-muted rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-primary rounded-full transition-all duration-1000"
-                                    style={{ width: `${s.avg}%` }}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+
+            {/* 1. Competency Selection Cards Grid */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">
+                        Select Cohort Competency ({compStats.length})
+                    </h4>
+                    <span className="text-xs font-bold text-muted-foreground">Click a card to inspect analytics</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {compStats.map((s) => {
+                        const isSelected = s.comp.id === selectedCompId;
+                        return (
+                            <button
+                                key={s.comp.id}
+                                onClick={() => setSelectedCompId(s.comp.id)}
+                                className={cn(
+                                    "p-4 rounded-2xl text-left border-2 transition-all flex items-center justify-between gap-3 shadow-2xs group cursor-pointer",
+                                    isSelected
+                                        ? "border-[#1B4332] bg-gradient-to-br from-emerald-50/90 to-white ring-2 ring-[#1B4332]/20 shadow-sm"
+                                        : "border-[#E8E4D8] bg-white hover:border-[#1B4332]/40 hover:bg-stone-50/60"
+                                )}
+                            >
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <Badge
+                                            className={cn(
+                                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-md",
+                                                isSelected ? "bg-[#1B4332] text-white" : "bg-stone-100 text-stone-700"
+                                            )}
+                                        >
+                                            {s.meta ? `W${s.meta.waveNumber}` : ""}:{s.comp.code}
+                                        </Badge>
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                                            Level {s.comp.level}
+                                        </span>
+                                    </div>
+                                    <h5 className="font-serif font-bold text-xs sm:text-sm text-foreground leading-tight line-clamp-2">
+                                        {s.comp.title}
+                                    </h5>
+                                </div>
+
+                                {/* Mini Pie Chart Gauge with Fixed Font Scaling */}
+                                <div className="shrink-0 flex items-center pl-2">
+                                    <CompetencyPieChart percentage={s.avg} size={58} strokeWidth={7} label="" />
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
             </div>
+
+            {/* 2. Selected Competency Detailed Pie Chart & Mastery Dashboard */}
+            {activeStat && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <Card className="rounded-3xl border-2 border-[#E8E4D8] bg-white p-6 sm:p-8 space-y-6 shadow-sm">
+                        {/* Header Header */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#E8E4D8]">
+                            <div className="flex items-start gap-4 flex-1 min-w-0">
+                                {/* Main Pie Chart Ring */}
+                                <CompetencyPieChart percentage={activeStat.avg} size={130} strokeWidth={14} label="Composite" />
+
+                                <div className="space-y-2 min-w-0 flex-1 pt-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge className="bg-[#1B4332] text-white text-xs font-black uppercase tracking-wider">
+                                            {activeStat.meta ? `Wave ${activeStat.meta.waveNumber}: ` : ""}{activeStat.comp.code}
+                                        </Badge>
+                                        <Badge variant="outline" className="rounded-full text-xs font-bold border-[#E8E4D8]">
+                                            Level {activeStat.comp.level}
+                                        </Badge>
+                                        <Badge variant="outline" className="rounded-full text-xs font-bold border-[#E8E4D8]">
+                                            Category: {activeStat.comp.category || "Leadership"}
+                                        </Badge>
+                                    </div>
+
+                                    <h3 className="font-serif font-black text-xl sm:text-2xl text-[#1B4332]">
+                                        {activeStat.comp.title}
+                                    </h3>
+
+                                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                                        {activeStat.comp.description || "Mastery evaluation across Believe, Know, Do phases, and wave examinations."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Overall Status Badge */}
+                            <div className="flex flex-col items-start md:items-end justify-center shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-[#E8E4D8]">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
+                                    Mastery Threshold (75%)
+                                </span>
+                                {activeStat.avg >= 75 ? (
+                                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                        <CheckCircle2 className="size-5 text-emerald-700 shrink-0" />
+                                        <span className="font-serif font-black text-sm">Target Met (Mastered)</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-amber-100 text-amber-900 border border-amber-200">
+                                        <Clock className="size-5 text-amber-700 shrink-0" />
+                                        <span className="font-serif font-black text-sm">In Progress ({75 - activeStat.avg}% remaining)</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Phase Components Breakdown Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Believe Phase */}
+                            <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-2">
+                                <div className="flex items-center justify-between text-purple-900">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Believe Phase</span>
+                                    <Heart className="size-4 text-purple-600" />
+                                </div>
+                                <p className="text-xl font-serif font-black text-purple-950">
+                                    {activeStat.performance.biBreakdown.filter((b) => b.believePassed).length} / {activeStat.performance.biBreakdown.length}
+                                </p>
+                                <p className="text-[10px] font-semibold text-purple-700">Mindsets Locked</p>
+                            </div>
+
+                            {/* Know Phase */}
+                            <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-2">
+                                <div className="flex items-center justify-between text-blue-900">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Know Phase (Quizzes)</span>
+                                    <Brain className="size-4 text-blue-600" />
+                                </div>
+                                <p className="text-xl font-serif font-black text-blue-950">
+                                    {Math.round(
+                                        activeStat.performance.biBreakdown.reduce((a, b) => a + b.knowScore, 0) /
+                                        (activeStat.performance.biBreakdown.length || 1)
+                                    )}%
+                                </p>
+                                <p className="text-[10px] font-semibold text-blue-700">Knowledge Quiz Average</p>
+                            </div>
+
+                            {/* Do Phase */}
+                            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-2">
+                                <div className="flex items-center justify-between text-emerald-900">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Do Phase (Portfolio)</span>
+                                    <FileText className="size-4 text-emerald-600" />
+                                </div>
+                                <p className="text-xl font-serif font-black text-emerald-950">
+                                    {Math.round(
+                                        activeStat.performance.biBreakdown.reduce((a, b) => a + b.doScore, 0) /
+                                        (activeStat.performance.biBreakdown.length || 1)
+                                    )} <span className="text-xs text-emerald-700 font-normal">/ 50</span>
+                                </p>
+                                <p className="text-[10px] font-semibold text-emerald-700">STAR Evidence Evaluation</p>
+                            </div>
+
+                            {/* Exam Score */}
+                            <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-100 space-y-2">
+                                <div className="flex items-center justify-between text-amber-900">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Wave Examination</span>
+                                    <GraduationCap className="size-4 text-amber-600" />
+                                </div>
+                                <p className="text-xl font-serif font-black text-amber-950">
+                                    {activeStat.performance.examScore}%
+                                </p>
+                                <p className="text-[10px] font-semibold text-amber-700">Final Wave Exam Grade</p>
+                            </div>
+                        </div>
+
+                        {/* 3. Behavioral Indicator Granular Table */}
+                        <div className="space-y-3 pt-4 border-t border-[#E8E4D8]">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-[#1B4332]">
+                                Behavioral Indicators ({activeStat.performance.biBreakdown.length})
+                            </h4>
+
+                            <ResponsiveTableCard
+                                mobileCards={activeStat.performance.biBreakdown.map((bi) => (
+                                    <div key={bi.id} className="p-4 rounded-2xl border-2 border-[#E8E4D8] bg-white space-y-2">
+                                        <p className="font-serif font-bold text-sm text-foreground">
+                                            {bi.title.replace(/^BI\d+[\s:-]*/i, "")}
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-stone-100 text-xs">
+                                            <div>
+                                                <span className="text-[9px] font-bold text-muted-foreground block">Believe</span>
+                                                <span className="font-bold">{bi.believePassed ? "✓ Passed" : "Pending"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-muted-foreground block">Know</span>
+                                                <span className="font-bold">{bi.knowScore}%</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] font-bold text-muted-foreground block">Do</span>
+                                                <span className="font-bold">{bi.doScore}/50</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            >
+                                <table className="w-full text-left text-xs sm:text-sm">
+                                    <thead className="bg-stone-50 border-b-2 border-[#E8E4D8]">
+                                        <tr>
+                                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-[#1B4332]">
+                                                Behavioral Indicator
+                                            </th>
+                                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-center">
+                                                Believe (Mindset)
+                                            </th>
+                                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-center">
+                                                Know (Quiz)
+                                            </th>
+                                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-center">
+                                                Do (Portfolio)
+                                            </th>
+                                            <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
+                                                BI Composite Score
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#E8E4D8]">
+                                        {activeStat.performance.biBreakdown.map((bi) => (
+                                            <tr key={bi.id} className="hover:bg-stone-50/50">
+                                                <td className="px-4 py-3.5 font-bold text-foreground">
+                                                    {bi.title.replace(/^BI\d+[\s:-]*/i, "")}
+                                                </td>
+                                                <td className="px-4 py-3.5 text-center">
+                                                    {bi.believePassed ? (
+                                                        <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-bold">Passed</Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-muted-foreground text-[10px]">Pending</Badge>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3.5 text-center font-bold">
+                                                    {bi.knowScore}%
+                                                </td>
+                                                <td className="px-4 py-3.5 text-center font-bold">
+                                                    {bi.doScore} / 50
+                                                </td>
+                                                <td className="px-4 py-3.5 text-right font-serif font-black text-sm text-[#1B4332]">
+                                                    {bi.score}%
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </ResponsiveTableCard>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }
 
 /**
- * WAVE LEVEL VIEW
+ * WAVE LEVEL TIMELINE VIEW
  */
 function WaveView({
     waveResults,
@@ -1322,68 +1790,86 @@ function WaveView({
     waves: Wave[];
 }) {
     if (waveResults.length === 0)
-        return <EmptyState message="No wave results finalized." />;
+        return <EmptyState message="No wave results finalized for this fellow." />;
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-6 sm:space-y-8">
             <SectionHeader
                 icon={Waves}
-                title="Wave Level"
-                description="Finalized results per program wave."
+                title="Wave Timeline & Milestones"
+                description="Chronological wave progress tracking, composite wave grades, and milestone evaluations."
                 color="bg-indigo-100 text-indigo-700"
             />
-            <div className="space-y-3 sm:space-y-4">
-                {waveResults.map((r) => {
+
+            {/* Timeline Cards Container */}
+            <div className="relative space-y-6 before:absolute before:inset-0 before:left-6 sm:before:left-8 before:w-1 before:bg-[#E8E4D8] before:z-0">
+                {waveResults.map((r, idx) => {
                     const wave = waves.find((w) => w.id === r.wave_id);
+                    const isPassed = r.final_score >= 75;
+
                     return (
-                        <div
-                            key={r.id}
-                            className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border-2 border-[#E8E4D8] shadow-sm space-y-3 sm:space-y-4"
-                        >
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-indigo-500">
-                                        Program Wave
-                                    </p>
-                                    <h4 className="font-serif font-black text-base sm:text-lg md:text-xl leading-tight break-words">
-                                        Wave {wave?.number ?? "?"}: {wave?.name || "Result"}
-                                    </h4>
-                                </div>
-                                <div className="text-center bg-primary/5 px-4 sm:px-6 py-2 rounded-xl sm:rounded-2xl border-2 border-primary/10 shrink-0 w-full sm:w-auto">
-                                    <p className="text-[9px] sm:text-[10px] font-black uppercase text-primary mb-0.5 sm:mb-1">
-                                        Final Score
-                                    </p>
-                                    <p className="text-xl sm:text-2xl font-black text-primary">
-                                        {r.final_score}%
-                                    </p>
-                                </div>
+                        <div key={r.id} className="relative z-10 flex items-start gap-4 sm:gap-6">
+                            {/* Wave Number Circle Icon */}
+                            <div
+                                className={cn(
+                                    "size-12 sm:size-16 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center text-white font-serif font-black shadow-md shrink-0 border-4 border-white",
+                                    isPassed ? "bg-[#1B4332]" : "bg-indigo-600"
+                                )}
+                            >
+                                <span className="text-[9px] font-black uppercase text-amber-300 tracking-wider">Wave</span>
+                                <span className="text-base sm:text-xl font-serif font-black leading-none">
+                                    {wave?.number ?? (idx + 1)}
+                                </span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 sm:gap-4 border-t-2 border-dashed border-[#E8E4D8] pt-3 sm:pt-4 text-center">
-                                <div>
-                                    <p className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
-                                        Comp Avg
-                                    </p>
-                                    <p className="text-base sm:text-lg font-black">
-                                        {r.competency_avg}%
-                                    </p>
+
+                            {/* Wave Details Card */}
+                            <Card className="flex-1 rounded-3xl border-2 border-[#E8E4D8] bg-white p-5 sm:p-6 space-y-4 shadow-sm hover:border-[#1B4332]/40 transition-all">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E4D8]">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Badge className="bg-indigo-100 text-indigo-800 text-[9px] font-black uppercase tracking-wider">
+                                                Milestone Wave {wave?.number ?? (idx + 1)}
+                                            </Badge>
+                                            {isPassed && (
+                                                <Badge className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase">
+                                                    Mastery Met ✓
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <h4 className="font-serif font-black text-lg sm:text-xl text-[#1B4332]">
+                                            {wave?.name || `Program Wave ${idx + 1}`}
+                                        </h4>
+                                    </div>
+
+                                    {/* Final Wave Score Pill */}
+                                    <div className="flex items-center gap-3 bg-stone-50 px-4 py-2 rounded-2xl border border-[#E8E4D8]">
+                                        <div className="text-right">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                                Wave Grade
+                                            </p>
+                                            <p className="text-2xl font-serif font-black text-[#1B4332]">
+                                                {r.final_score}%
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
-                                        Exam
-                                    </p>
-                                    <p className="text-base sm:text-lg font-black">
-                                        {r.exam_score}%
-                                    </p>
+
+                                {/* Component Score Contributions Grid */}
+                                <div className="grid grid-cols-3 gap-3 text-center pt-1">
+                                    <div className="p-3 rounded-2xl bg-stone-50 border border-[#E8E4D8]">
+                                        <p className="text-[9px] font-black uppercase text-muted-foreground">Competency Avg</p>
+                                        <p className="font-serif font-black text-base text-foreground mt-0.5">{r.competency_avg}%</p>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-amber-50/60 border border-amber-100">
+                                        <p className="text-[9px] font-black uppercase text-amber-800">Final Exam</p>
+                                        <p className="font-serif font-black text-base text-amber-950 mt-0.5">{r.exam_score}%</p>
+                                    </div>
+                                    <div className="p-3 rounded-2xl bg-purple-50/60 border border-purple-100">
+                                        <p className="text-[9px] font-black uppercase text-purple-800">Grounding</p>
+                                        <p className="font-serif font-black text-base text-purple-950 mt-0.5">{r.grounding_score}%</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-muted-foreground">
-                                        Grounding
-                                    </p>
-                                    <p className="text-base sm:text-lg font-black">
-                                        {r.grounding_score}%
-                                    </p>
-                                </div>
-                            </div>
+                            </Card>
                         </div>
                     );
                 })}
@@ -1393,7 +1879,7 @@ function WaveView({
 }
 
 /**
- * OVERALL PERFORMANCE VIEW
+ * OVERALL PROGRAM PERFORMANCE VIEW
  */
 function OverallView({
     fellowName,
@@ -1406,170 +1892,188 @@ function OverallView({
     portfolios: Portfolio[];
     progress: PhaseProgress[];
 }) {
-    const overallAvg =
-        waveResults.length > 0
-            ? Math.round(
-                waveResults.reduce((a, b) => a + b.final_score, 0) /
-                waveResults.length
-            )
-            : 0;
+    const overallAvg = useMemo(() => {
+        if (waveResults.length === 0) return 0;
+        return Math.round(
+            waveResults.reduce((a, b) => a + b.final_score, 0) / waveResults.length
+        );
+    }, [waveResults]);
 
-    const stats = [
-        {
-            label: "Program Avg",
-            value: `${overallAvg}%`,
-            color: "bg-primary text-white",
-        },
-        {
-            label: "Approved",
-            value: portfolios.filter((p) => p.status === "approved").length,
-            color: "bg-emerald-50 text-emerald-700 border-emerald-100",
-        },
-        {
-            label: "Quizzes",
-            value: progress.filter((p) => p.phase_type === "know").length,
-            color: "bg-blue-50 text-blue-700 border-blue-100",
-        },
-        {
-            label: "Mindsets",
-            value: progress.filter(
-                (p) => p.phase_type === "believe" && p.believe_passed
-            ).length,
-            color: "bg-purple-50 text-purple-700 border-purple-100",
-        },
-    ];
+    // 1. Believe Phase Stats
+    const believeProgress = useMemo(() => progress.filter((p) => p.phase_type === "believe"), [progress]);
+    const believeLocked = useMemo(() => believeProgress.filter((p) => p.believe_passed).length, [believeProgress]);
+    const believePct = useMemo(() => believeProgress.length > 0 ? Math.round((believeLocked / believeProgress.length) * 100) : 0, [believeProgress, believeLocked]);
+
+    // 2. Know Phase Stats
+    const knowProgress = useMemo(() => progress.filter((p) => p.phase_type === "know"), [progress]);
+    const knowAvg = useMemo(() => {
+        if (knowProgress.length === 0) return 0;
+        return Math.round(knowProgress.reduce((a, b) => a + (b.know_score ?? 0), 0) / knowProgress.length);
+    }, [knowProgress]);
+
+    // 3. Do Phase (Portfolio) Stats
+    const approvedPortfolios = useMemo(() => portfolios.filter((p) => p.status === "approved"), [portfolios]);
+    const doAvgScore = useMemo(() => {
+        if (approvedPortfolios.length === 0) return 0;
+        const total = approvedPortfolios.reduce((a, b) => a + ((b as any).score ?? (b as any).do_score ?? 0), 0);
+        return Math.round((total / (approvedPortfolios.length * 50)) * 100);
+    }, [approvedPortfolios]);
+
+    // 4. Examination Stats
+    const examAvg = useMemo(() => {
+        if (waveResults.length === 0) return 0;
+        return Math.round(waveResults.reduce((a, b) => a + b.exam_score, 0) / waveResults.length);
+    }, [waveResults]);
 
     return (
         <div className="space-y-6 sm:space-y-8">
             <SectionHeader
                 icon={BarChart3}
-                title="Overall Performance"
-                description="Complete program engagement snapshot."
-                color="bg-primary/10 text-primary"
+                title="Program Overview & Executive Mastery Dashboard"
+                description="Holistic evaluation across Believe, Know, Do, and Examination phases for this fellow."
+                color="bg-[#1B4332]/10 text-[#1B4332]"
             />
 
-            {/* Big Score Card */}
-            <div className="relative text-center py-6 sm:py-8 md:py-10 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-primary/10 via-white to-primary/5 border-2 sm:border-4 border-primary/20 shadow-xl overflow-hidden group px-4">
-                <div className="absolute top-0 right-0 p-3 sm:p-6 md:p-8 opacity-10 group-hover:scale-110 transition-transform">
-                    <BarChart3 className="size-12 sm:size-20 md:size-24 lg:size-32" />
-                </div>
-                <p className="text-[9px] sm:text-[10px] md:text-xs font-black uppercase tracking-[0.1em] sm:tracking-[0.15em] md:tracking-[0.2em] text-primary/60 mb-1 sm:mb-2 relative z-10">
-                    Fellow Composite Performance
-                </p>
-                <p className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-serif font-black text-primary relative z-10">
-                    {overallAvg}%
-                </p>
-                <div className="mt-3 sm:mt-4 md:mt-6 flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 relative z-10">
-                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 rounded-full font-black italic text-[9px] sm:text-[10px]">
-                        ON TRACK
-                    </Badge>
-                    <span className="text-[10px] sm:text-xs text-muted-foreground font-serif italic">
-                        Cohort Rank: Top 15%
-                    </span>
-                </div>
-            </div>
-
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4">
-                {stats.map((s, i) => (
-                    <div
-                        key={i}
-                        className={cn(
-                            "p-3 sm:p-4 md:p-5 rounded-xl sm:rounded-2xl border-2 text-center shadow-sm",
-                            s.color
-                        )}
-                    >
-                        <p className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5 sm:mb-1 truncate">
-                            {s.label}
-                        </p>
-                        <p className="text-xl sm:text-2xl md:text-3xl font-serif font-black">
-                            {s.value}
+            {/* Hero Executive Performance Banner */}
+            <Card className="relative overflow-hidden rounded-3xl border-2 border-[#1B4332]/20 bg-gradient-to-br from-[#1B4332] via-[#1B4332] to-[#2D5A43] text-white p-6 sm:p-10 shadow-lg">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-3 text-center md:text-left flex-1 min-w-0">
+                        <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
+                            <Badge className="bg-amber-400 text-[#1B4332] text-xs font-black uppercase tracking-wider px-3 py-1">
+                                Executive Fellow Dashboard
+                            </Badge>
+                            <Badge className="bg-white/20 text-white border-white/30 text-xs font-bold px-3 py-1">
+                                {waveResults.length} Waves Tracked
+                            </Badge>
+                        </div>
+                        <h2 className="font-serif font-black text-2xl sm:text-4xl text-white">
+                            {fellowName}
+                        </h2>
+                        <p className="text-xs sm:text-sm text-white/80 max-w-xl font-serif italic">
+                            Composite progress score combining Mindset Reflections (Believe), Quizzes (Know), STAR Evidence (Do), and Wave Final Exams.
                         </p>
                     </div>
-                ))}
+
+                    {/* Donut Chart Mastery Display */}
+                    <div className="shrink-0 flex flex-col items-center bg-white/10 p-5 rounded-3xl backdrop-blur-md border border-white/20">
+                        <CompetencyPieChart percentage={overallAvg} size={130} strokeWidth={14} label="Program Avg" />
+                        <Badge className="mt-3 bg-emerald-400 text-[#1B4332] text-[10px] font-black uppercase">
+                            Overall Status: On Track ✓
+                        </Badge>
+                    </div>
+                </div>
+            </Card>
+
+            {/* 4-Phase Deep Dive Donut Cards Matrix */}
+            <div className="space-y-3">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1B4332] px-1">
+                    Leadership Development Phase Gauges (4-Phase Mastery)
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Phase 1: Believe */}
+                    <Card className="p-5 rounded-3xl border-2 border-purple-100 bg-gradient-to-br from-purple-50/70 to-white shadow-xs flex items-center justify-between gap-3">
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 text-purple-700">
+                                <Heart className="size-4" />
+                                <span className="text-[10px] font-black uppercase tracking-wider">Believe Phase</span>
+                            </div>
+                            <h5 className="font-serif font-bold text-base text-purple-950">
+                                Mindsets
+                            </h5>
+                            <p className="text-[11px] text-purple-800 font-medium">
+                                {believeLocked} of {believeProgress.length} Locked
+                            </p>
+                        </div>
+                        <div className="shrink-0">
+                            <CompetencyPieChart percentage={believePct} size={64} strokeWidth={7} label="Believe" />
+                        </div>
+                    </Card>
+
+                    {/* Phase 2: Know */}
+                    <Card className="p-5 rounded-3xl border-2 border-blue-100 bg-gradient-to-br from-blue-50/70 to-white shadow-xs flex items-center justify-between gap-3">
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 text-blue-700">
+                                <Brain className="size-4" />
+                                <span className="text-[10px] font-black uppercase tracking-wider">Know Phase</span>
+                            </div>
+                            <h5 className="font-serif font-bold text-base text-blue-950">
+                                Quizzes
+                            </h5>
+                            <p className="text-[11px] text-blue-800 font-medium">
+                                {knowProgress.length} Completed
+                            </p>
+                        </div>
+                        <div className="shrink-0">
+                            <CompetencyPieChart percentage={knowAvg} size={64} strokeWidth={7} label="Know" />
+                        </div>
+                    </Card>
+
+                    {/* Phase 3: Do */}
+                    <Card className="p-5 rounded-3xl border-2 border-emerald-100 bg-gradient-to-br from-emerald-50/70 to-white shadow-xs flex items-center justify-between gap-3">
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 text-emerald-700">
+                                <FileText className="size-4" />
+                                <span className="text-[10px] font-black uppercase tracking-wider">Do Phase</span>
+                            </div>
+                            <h5 className="font-serif font-bold text-base text-emerald-950">
+                                Portfolios
+                            </h5>
+                            <p className="text-[11px] text-emerald-800 font-medium">
+                                {approvedPortfolios.length} Approved
+                            </p>
+                        </div>
+                        <div className="shrink-0">
+                            <CompetencyPieChart percentage={doAvgScore} size={64} strokeWidth={7} label="Do" />
+                        </div>
+                    </Card>
+
+                    {/* Phase 4: Examination */}
+                    <Card className="p-5 rounded-3xl border-2 border-amber-100 bg-gradient-to-br from-amber-50/70 to-white shadow-xs flex items-center justify-between gap-3">
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 text-amber-800">
+                                <GraduationCap className="size-4" />
+                                <span className="text-[10px] font-black uppercase tracking-wider">Exams</span>
+                            </div>
+                            <h5 className="font-serif font-bold text-base text-amber-950">
+                                Wave Exams
+                            </h5>
+                            <p className="text-[11px] text-amber-800 font-medium">
+                                {waveResults.length} Milestone Waves
+                            </p>
+                        </div>
+                        <div className="shrink-0">
+                            <CompetencyPieChart percentage={examAvg} size={64} strokeWidth={7} label="Exam" />
+                        </div>
+                    </Card>
+                </div>
             </div>
 
-            {/* Recent History — mobile cards, desktop table */}
-            <div className="space-y-2 sm:space-y-3">
-                <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">
-                    Recent Milestone History
-                </h4>
-                <ResponsiveTableCard
-                    mobileCards={
-                        <>
-                            {waveResults.map((r, i) => (
-                                <div
-                                    key={`wave-${i}`}
-                                    className="p-3 rounded-xl border-2 border-[#E8E4D8] bg-white flex items-center justify-between gap-2"
-                                >
-                                    <span className="font-bold text-xs truncate">
-                                        Wave Result Finalized
+            {/* Wave Milestones Summary Bar */}
+            {waveResults.length > 0 && (
+                <Card className="p-5 sm:p-6 rounded-3xl border-2 border-[#E8E4D8] bg-white space-y-4 shadow-xs">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-[#1B4332]">
+                        Milestone Wave Final Scores ({waveResults.length})
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {waveResults.map((r, idx) => (
+                            <div key={r.id} className="p-4 rounded-2xl border border-[#E8E4D8] bg-stone-50/60 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <span className="text-[9px] font-black uppercase text-[#1B4332]/70">
+                                        Milestone Wave {idx + 1}
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground italic font-serif shrink-0">
-                                        {r.completed_at
-                                            ? new Date(r.completed_at).toLocaleDateString()
-                                            : "Recent"}
-                                    </span>
+                                    <h6 className="font-serif font-bold text-sm text-foreground">
+                                        Wave Composite Score
+                                    </h6>
                                 </div>
-                            ))}
-                            {portfolios.slice(0, 2).map((p, i) => (
-                                <div
-                                    key={`port-${i}`}
-                                    className="p-3 rounded-xl border-2 border-[#E8E4D8] bg-white flex items-center justify-between gap-2"
-                                >
-                                    <span className="font-bold text-xs truncate">
-                                        Portfolio {p.status}
-                                    </span>
-                                    <span className="text-[10px] text-muted-foreground italic font-serif shrink-0">
-                                        {p.submitted_at
-                                            ? new Date(p.submitted_at).toLocaleDateString()
-                                            : "Recent"}
-                                    </span>
-                                </div>
-                            ))}
-                        </>
-                    }
-                >
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-muted/30 border-b-2 border-[#E8E4D8]">
-                            <tr>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px]">
-                                    Event
-                                </th>
-                                <th className="px-4 py-3 font-black uppercase tracking-widest text-[10px] text-right">
-                                    Date
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#E8E4D8]">
-                            {waveResults.map((r, i) => (
-                                <tr key={i}>
-                                    <td className="px-4 py-4 font-bold text-sm">
-                                        Wave Result Finalized
-                                    </td>
-                                    <td className="px-4 py-4 text-right text-muted-foreground italic font-serif text-xs">
-                                        {r.completed_at
-                                            ? new Date(r.completed_at).toLocaleDateString()
-                                            : "Recent"}
-                                    </td>
-                                </tr>
-                            ))}
-                            {portfolios.slice(0, 2).map((p, i) => (
-                                <tr key={i}>
-                                    <td className="px-4 py-4 font-bold text-sm">
-                                        Portfolio {p.status}
-                                    </td>
-                                    <td className="px-4 py-4 text-right text-muted-foreground italic font-serif text-xs">
-                                        {p.submitted_at
-                                            ? new Date(p.submitted_at).toLocaleDateString()
-                                            : "Recent"}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </ResponsiveTableCard>
-            </div>
+                                <span className="font-serif font-black text-xl text-[#1B4332]">
+                                    {r.final_score}%
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 }
@@ -1657,51 +2161,64 @@ function PerformanceBreakdownView({
 
     // Group competencies by wave (in wave order, then competency display order).
     // Only the fellow's OWN cohort waves/competencies are shown — competencies that
-    // belong to other cohorts' waves are excluded entirely.
-    const competencyGroups = React.useMemo(() => {
+    // Filter competencies so ONLY those belonging to the fellow's cohort are shown
+    const cohortCompetencies = React.useMemo(() => {
         const hasWaveScope = Object.keys(competencyWaveMeta).length > 0;
-
-        // Fallback: if we couldn't resolve the fellow's cohort waves, show everything
-        // in a single group rather than leaking other cohorts' waves.
-        if (!hasWaveScope) {
-            return competencyPerformance.length
-                ? [
-                      {
-                          key: "all",
-                          label: "All Competencies",
-                          comps: [...competencyPerformance].sort((a, b) => a.title.localeCompare(b.title)),
-                      },
-                  ]
-                : [];
+        if (hasWaveScope) {
+            return competencyPerformance.filter((c) => !!competencyWaveMeta[c.id]);
         }
+        return competencyPerformance;
+    }, [competencyPerformance, competencyWaveMeta]);
 
-        const buckets: Record<number, typeof competencyPerformance> = {};
-        competencyPerformance.forEach((c) => {
+    // Group competencies by wave for the selector
+    const competencyGroups = React.useMemo(() => {
+        const buckets: Record<number, typeof cohortCompetencies> = {};
+        cohortCompetencies.forEach((c) => {
             const meta = competencyWaveMeta[c.id];
-            if (!meta) return; // not part of this fellow's cohort — skip
-            (buckets[meta.waveNumber] ||= []).push(c);
+            const waveNum = meta ? meta.waveNumber : 1;
+            (buckets[waveNum] ||= []).push(c);
         });
-        Object.values(buckets).forEach((list) =>
-            list.sort((a, b) => {
-                const ma = competencyWaveMeta[a.id];
-                const mb = competencyWaveMeta[b.id];
-                if (ma.displayOrder !== mb.displayOrder) return ma.displayOrder - mb.displayOrder;
-                return a.title.localeCompare(b.title);
-            })
-        );
+
         return Object.keys(buckets)
             .map(Number)
             .sort((a, b) => a - b)
             .map((waveNumber) => ({
                 key: `wave-${waveNumber}`,
+                waveNumber,
                 label: `Wave ${waveNumber}: ${orderedWaves.find((w) => w.number === waveNumber)?.name || `Wave ${waveNumber}`}`,
-                comps: buckets[waveNumber],
+                comps: buckets[waveNumber].sort((a, b) => {
+                    const ma = competencyWaveMeta[a.id];
+                    const mb = competencyWaveMeta[b.id];
+                    if (ma && mb && ma.displayOrder !== mb.displayOrder) return ma.displayOrder - mb.displayOrder;
+                    return a.title.localeCompare(b.title);
+                }),
             }));
-    }, [competencyPerformance, competencyWaveMeta, orderedWaves]);
+    }, [cohortCompetencies, competencyWaveMeta, orderedWaves]);
 
-    const selectedComp = competencyPerformance.find(
+    const [selectedWaveNumber, setSelectedWaveNumber] = React.useState<number | "all">("all");
+
+    // Competencies visible based on the selected wave dropdown filter
+    const visibleCompetencies = React.useMemo(() => {
+        if (selectedWaveNumber === "all") return cohortCompetencies;
+        return cohortCompetencies.filter(
+            (c) => competencyWaveMeta[c.id]?.waveNumber === selectedWaveNumber
+        );
+    }, [cohortCompetencies, competencyWaveMeta, selectedWaveNumber]);
+
+    // Auto-select first competency if none selected or if switching waves
+    React.useEffect(() => {
+        if (visibleCompetencies.length > 0) {
+            const isCurrentlyVisible = visibleCompetencies.some((c) => c.id === selectedCompId);
+            if (!isCurrentlyVisible) {
+                setSelectedCompId(visibleCompetencies[0].id);
+            }
+        }
+    }, [visibleCompetencies, selectedCompId]);
+
+    const selectedComp = cohortCompetencies.find(
         (c) => c.id === selectedCompId
-    );
+    ) || visibleCompetencies[0] || cohortCompetencies[0];
+
     const selectedBreakdown = selectedComp?.biBreakdown ?? [];
     const totalBIs = selectedBreakdown.length;
     const believePassedCount = selectedBreakdown.filter(
@@ -1814,74 +2331,82 @@ function PerformanceBreakdownView({
                 </Card>
             </div>
 
-            {/* Competency Selector — grouped by wave, then competency order */}
-            <div className="space-y-4 sm:space-y-5">
-                <h4 className="text-xs sm:text-sm font-bold text-foreground px-1">
-                    Select Competency to View Breakdown
-                </h4>
-                {competencyGroups.map((group) => (
-                    <div key={group.key} className="space-y-2 sm:space-y-2.5">
-                        <div className="flex items-center gap-2 px-1">
-                            <Waves className="size-3.5 text-primary/60" />
-                            <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-primary/70">
-                                {group.label}
-                            </p>
-                            <span className="text-[10px] font-bold text-muted-foreground">
-                                ({group.comps.length})
-                            </span>
-                            <div className="h-px flex-1 bg-[#E8E4D8]" />
+            {/* Wave Selector Dropdown & Larger Competency Tabs Bar */}
+            <div className="space-y-4 bg-stone-50/90 border-2 border-[#E8E4D8] p-4 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 text-[#1B4332]">
+                        <div className="size-10 rounded-xl bg-[#1B4332]/10 flex items-center justify-center text-[#1B4332] shrink-0">
+                            <Waves className="size-5" />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5 md:gap-3">
-                            {group.comps.map((comp) => (
-                                <button
-                                    key={comp.id}
-                                    onClick={() => setSelectedCompId(comp.id)}
-                                    className={cn(
-                                        "p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 transition-all text-left active:scale-[0.98]",
-                                        selectedCompId === comp.id
-                                            ? "bg-primary text-white border-primary shadow-lg scale-[1.01] sm:scale-[1.02]"
-                                            : "bg-white border-[#E8E4D8] hover:border-primary/40 hover:shadow-md"
-                                    )}
-                                >
-                                    <div className="flex items-center justify-between mb-1 sm:mb-1.5">
-                                        <span
-                                            className={cn(
-                                                "text-[9px] sm:text-[10px] font-black uppercase tracking-widest",
-                                                selectedCompId === comp.id
-                                                    ? "text-white/80"
-                                                    : "text-primary/60"
-                                            )}
-                                        >
-                                            {comp.code}
-                                        </span>
-                                        <span
-                                            className={cn(
-                                                "text-lg sm:text-xl font-serif font-black",
-                                                selectedCompId === comp.id
-                                                    ? "text-white"
-                                                    : "text-primary"
-                                            )}
-                                        >
-                                            {comp.compositeScore}%
-                                        </span>
-                                    </div>
-                                    <p
-                                        className={cn(
-                                            "text-xs sm:text-sm font-bold line-clamp-1",
-                                            selectedCompId === comp.id
-                                                ? "text-white"
-                                                : "text-foreground"
-                                        )}
-                                    >
-                                        {comp.title}
-                                    </p>
-                                </button>
-                            ))}
+                        <div>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                                Program Waves ({competencyGroups.length} Waves Total)
+                            </p>
+                            <h4 className="text-xs sm:text-sm font-bold text-foreground">
+                                Select Wave to Filter Competencies
+                            </h4>
                         </div>
                     </div>
-                ))}
-                {competencyGroups.length === 0 && (
-                    <EmptyState message="No competencies available for this fellow yet." />
+
+                    {/* Wave Selector Dropdown */}
+                    <div className="relative min-w-[260px] sm:min-w-[320px]">
+                        <select
+                            value={selectedWaveNumber}
+                            onChange={(e) => {
+                                const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                                setSelectedWaveNumber(val);
+                            }}
+                            className="w-full h-11 sm:h-12 pl-4 pr-10 rounded-2xl border-2 border-[#E8E4D8] bg-white font-serif font-bold text-xs sm:text-sm text-foreground focus:border-[#1B4332] focus:outline-none transition-all cursor-pointer shadow-xs appearance-none"
+                        >
+                            <option value="all">All Waves ({cohortCompetencies.length} Competencies)</option>
+                            {competencyGroups.map((group) => (
+                                <option key={group.key} value={group.waveNumber}>
+                                    {group.label} ({group.comps.length} Competencies)
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown className="size-4 text-muted-foreground absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                </div>
+
+                {/* Larger, Taller Competency Switcher Tabs */}
+                {visibleCompetencies.length > 0 && (
+                    <div className="space-y-2 pt-3 border-t border-[#E8E4D8]">
+                        <div className="flex items-center justify-between px-1">
+                            <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                                Competencies in {selectedWaveNumber === "all" ? "All Waves" : `Wave ${selectedWaveNumber}`} ({visibleCompetencies.length})
+                            </p>
+                            <span className="text-[10px] font-serif italic text-muted-foreground">
+                                Click a tab below to view detailed breakdown
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2.5 overflow-x-auto py-1 scrollbar-none">
+                            {visibleCompetencies.map((comp) => {
+                                const isSelected = selectedComp?.id === comp.id;
+                                const meta = competencyWaveMeta[comp.id];
+                                return (
+                                    <button
+                                        key={comp.id}
+                                        onClick={() => setSelectedCompId(comp.id)}
+                                        className={cn(
+                                            "flex items-center gap-2.5 h-11 sm:h-12 px-4 py-2.5 rounded-2xl border-2 font-serif font-bold text-xs sm:text-sm transition-all whitespace-nowrap shrink-0 active:scale-[0.98]",
+                                            isSelected
+                                                ? "bg-[#1B4332] text-white border-[#1B4332] shadow-lg scale-[1.02]"
+                                                : "bg-white text-foreground border-[#E8E4D8] hover:border-[#1B4332]/40 hover:bg-emerald-50/50 shadow-xs"
+                                        )}
+                                    >
+                                        <span className={cn("text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md", isSelected ? "bg-amber-400 text-amber-950 font-bold" : "bg-primary/10 text-primary")}>
+                                            {meta ? `W${meta.waveNumber}:` : ""}{comp.code}
+                                        </span>
+                                        <span className="truncate max-w-[180px] sm:max-w-[240px]">{comp.title}</span>
+                                        <Badge className={cn("rounded-full px-2.5 py-0.5 text-xs font-black shrink-0", isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800")}>
+                                            {comp.compositeScore}%
+                                        </Badge>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -2024,88 +2549,91 @@ function PerformanceBreakdownView({
 
                         {/* Mobile BI Cards */}
                         <div className="block lg:hidden p-3 sm:p-4 space-y-3">
-                            {selectedComp.biBreakdown.map((bi, idx) => (
-                                <div
-                                    key={bi.id}
-                                    className="p-3 sm:p-4 rounded-xl border-2 border-[#E8E4D8] bg-white space-y-3"
-                                >
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-xs font-black text-primary shrink-0 mt-0.5">
-                                            BI{idx + 1}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-bold text-foreground text-sm leading-tight">
-                                                {bi.title}
-                                            </p>
-                                            <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
-                                                {bi.description}
-                                            </p>
+                            {selectedComp.biBreakdown.map((bi, idx) => {
+                                const cleanTitle = bi.title.replace(/^BI\d+[\s:-]*/i, "");
+                                return (
+                                    <div
+                                        key={bi.id}
+                                        className="p-3 sm:p-4 rounded-xl border-2 border-[#E8E4D8] bg-white space-y-3"
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <span className="text-xs font-black text-primary shrink-0 mt-0.5">
+                                                BI{idx + 1}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-bold text-foreground text-sm leading-tight">
+                                                    {cleanTitle}
+                                                </p>
+                                                <p className="text-[10px] text-muted-foreground line-clamp-2 mt-0.5">
+                                                    {bi.description}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-[#E8E4D8]">
-                                        <div className="text-center">
-                                            <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
-                                                Believe
-                                            </p>
-                                            {bi.believePassed ? (
-                                                <CheckCircle2 className="size-4 text-emerald-500 mx-auto" />
-                                            ) : (
-                                                <Clock className="size-4 text-amber-500 mx-auto" />
-                                            )}
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
-                                                Know
-                                            </p>
-                                            <p
-                                                className={cn(
-                                                    "text-sm font-serif font-black",
-                                                    bi.knowContribution > 0
-                                                        ? "text-foreground"
-                                                        : "text-muted-foreground/30"
+                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-[#E8E4D8]">
+                                            <div className="text-center">
+                                                <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
+                                                    Believe
+                                                </p>
+                                                {bi.believePassed ? (
+                                                    <CheckCircle2 className="size-4 text-emerald-500 mx-auto" />
+                                                ) : (
+                                                    <Clock className="size-4 text-amber-500 mx-auto" />
                                                 )}
-                                            >
-                                                {bi.knowContribution > 0
-                                                    ? bi.knowContribution
-                                                    : "—"}
-                                            </p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
-                                                Do
-                                            </p>
-                                            <p
-                                                className={cn(
-                                                    "text-sm font-serif font-black",
-                                                    bi.doContribution > 0
-                                                        ? "text-foreground"
-                                                        : "text-muted-foreground/30"
-                                                )}
-                                            >
-                                                {bi.doContribution > 0
-                                                    ? bi.doContribution
-                                                    : "—"}
-                                            </p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
-                                                BI
-                                            </p>
-                                            <p
-                                                className={cn(
-                                                    "text-sm font-serif font-black",
-                                                    bi.score > 0
-                                                        ? "text-primary"
-                                                        : "text-muted-foreground/30"
-                                                )}
-                                            >
-                                                {bi.score > 0 ? bi.score : "—"}
-                                            </p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
+                                                    Know
+                                                </p>
+                                                <p
+                                                    className={cn(
+                                                        "text-sm font-serif font-black",
+                                                        bi.knowContribution > 0
+                                                            ? "text-foreground"
+                                                            : "text-muted-foreground/30"
+                                                    )}
+                                                >
+                                                    {bi.knowContribution > 0
+                                                        ? bi.knowContribution
+                                                        : "—"}
+                                                </p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
+                                                    Do
+                                                </p>
+                                                <p
+                                                    className={cn(
+                                                        "text-sm font-serif font-black",
+                                                        bi.doContribution > 0
+                                                            ? "text-foreground"
+                                                            : "text-muted-foreground/30"
+                                                    )}
+                                                >
+                                                    {bi.doContribution > 0
+                                                        ? bi.doContribution
+                                                        : "—"}
+                                                </p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[8px] font-black uppercase text-muted-foreground mb-0.5">
+                                                    BI
+                                                </p>
+                                                <p
+                                                    className={cn(
+                                                        "text-sm font-serif font-black",
+                                                        bi.score > 0
+                                                            ? "text-primary"
+                                                            : "text-muted-foreground/30"
+                                                    )}
+                                                >
+                                                    {bi.score > 0 ? bi.score : "—"}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
 
                             {/* Mobile Summary */}
                             <div className="p-3 sm:p-4 rounded-xl bg-primary/5 border-2 border-primary/20 space-y-2">
@@ -2118,13 +2646,13 @@ function PerformanceBreakdownView({
                                             selectedComp.biBreakdown.reduce(
                                                 (sum, bi) => sum + bi.score,
                                                 0
-                                            ) / selectedComp.biBreakdown.length
+                                            ) / (selectedComp.biBreakdown.length || 1)
                                         )}
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between pt-2 border-t border-primary/10">
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">
-                                        + Grounding (10) + Exam (20)
+                                        + Grounding ({groundingContribution}) + Exam ({examContribution})
                                     </span>
                                     <span className="text-2xl font-serif font-black text-primary">
                                         = {selectedComp.compositeScore}%
@@ -2156,72 +2684,77 @@ function PerformanceBreakdownView({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[#E8E4D8]">
-                                    {selectedComp.biBreakdown.map((bi, idx) => (
-                                        <tr key={bi.id} className="hover:bg-muted/5">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-black text-primary shrink-0">
-                                                        BI{idx + 1}
-                                                    </span>
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-foreground text-sm">
-                                                            {bi.title}
-                                                        </p>
-                                                        <p className="text-[10px] text-muted-foreground line-clamp-1">
-                                                            {bi.description}
-                                                        </p>
+                                    {selectedComp.biBreakdown.map((bi, idx) => {
+                                        const cleanTitle = bi.title.replace(/^BI\d+[\s:-]*/i, "");
+                                        return (
+                                            <tr key={bi.id} className="hover:bg-muted/5">
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className="inline-flex px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-black shrink-0">
+                                                            BI{idx + 1}
+                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <p className="font-bold text-foreground text-sm">
+                                                                {cleanTitle}
+                                                            </p>
+                                                            {bi.description && (
+                                                                <p className="text-[10px] text-muted-foreground line-clamp-1">
+                                                                    {bi.description}
+                                                                </p>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                {bi.believePassed ? (
-                                                    <CheckCircle2 className="size-5 text-emerald-500 mx-auto" />
-                                                ) : (
-                                                    <Clock className="size-5 text-amber-500 mx-auto" />
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span
-                                                    className={cn(
-                                                        "text-lg font-serif font-black",
-                                                        bi.knowContribution > 0
-                                                            ? "text-foreground"
-                                                            : "text-muted-foreground/30"
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {bi.believePassed ? (
+                                                        <CheckCircle2 className="size-5 text-emerald-500 mx-auto" />
+                                                    ) : (
+                                                        <Clock className="size-5 text-amber-500 mx-auto" />
                                                     )}
-                                                >
-                                                    {bi.knowContribution > 0
-                                                        ? bi.knowContribution
-                                                        : "—"}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span
-                                                    className={cn(
-                                                        "text-lg font-serif font-black",
-                                                        bi.doContribution > 0
-                                                            ? "text-foreground"
-                                                            : "text-muted-foreground/30"
-                                                    )}
-                                                >
-                                                    {bi.doContribution > 0
-                                                        ? bi.doContribution
-                                                        : "—"}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span
-                                                    className={cn(
-                                                        "text-xl font-serif font-black",
-                                                        bi.score > 0
-                                                            ? "text-primary"
-                                                            : "text-muted-foreground/30"
-                                                    )}
-                                                >
-                                                    {bi.score > 0 ? bi.score : "—"}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span
+                                                        className={cn(
+                                                            "text-lg font-serif font-black",
+                                                            bi.knowContribution > 0
+                                                                ? "text-foreground"
+                                                                : "text-muted-foreground/30"
+                                                        )}
+                                                    >
+                                                        {bi.knowContribution > 0
+                                                            ? bi.knowContribution
+                                                            : "—"}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span
+                                                        className={cn(
+                                                            "text-lg font-serif font-black",
+                                                            bi.doContribution > 0
+                                                                ? "text-foreground"
+                                                                : "text-muted-foreground/30"
+                                                        )}
+                                                    >
+                                                        {bi.doContribution > 0
+                                                            ? bi.doContribution
+                                                            : "—"}
+                                                    </span>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <span
+                                                        className={cn(
+                                                            "text-xl font-serif font-black",
+                                                            bi.score > 0
+                                                                ? "text-primary"
+                                                                : "text-muted-foreground/30"
+                                                        )}
+                                                    >
+                                                        {bi.score > 0 ? bi.score : "—"}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                                 <tfoot className="bg-primary/5 border-t-2 border-primary/20">
                                     <tr>
@@ -2335,39 +2868,9 @@ const TABS: {
     inactiveClass: string;
 }[] = [
     {
-        view: "portfolio",
-        label: "Portfolio",
-        shortLabel: "Portfolio",
-        icon: FileText,
-        activeClass:
-            "bg-emerald-100 text-emerald-700 shadow-md ring-2 ring-emerald-200",
-        inactiveClass:
-            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
-    },
-    {
-        view: "quiz",
-        label: "Quizzes",
-        shortLabel: "Quiz",
-        icon: Brain,
-        activeClass:
-            "bg-blue-100 text-blue-700 shadow-md ring-2 ring-blue-200",
-        inactiveClass:
-            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
-    },
-    {
-        view: "believe",
-        label: "Believe",
-        shortLabel: "Believe",
-        icon: Heart,
-        activeClass:
-            "bg-purple-100 text-purple-700 shadow-md ring-2 ring-purple-200",
-        inactiveClass:
-            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
-    },
-    {
         view: "performance",
-        label: "Performance",
-        shortLabel: "Perf",
+        label: "Performance Breakdown",
+        shortLabel: "Performance",
         icon: TrendingUp,
         activeClass:
             "bg-rose-100 text-rose-700 shadow-md ring-2 ring-rose-200",
@@ -2376,7 +2879,7 @@ const TABS: {
     },
     {
         view: "detail",
-        label: "Examinations",
+        label: "Examinations & Grading",
         shortLabel: "Exams",
         icon: GraduationCap,
         activeClass:
@@ -2385,9 +2888,19 @@ const TABS: {
             "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
     },
     {
+        view: "portfolio",
+        label: "Portfolio (Do)",
+        shortLabel: "Portfolio",
+        icon: FileText,
+        activeClass:
+            "bg-emerald-100 text-emerald-700 shadow-md ring-2 ring-emerald-200",
+        inactiveClass:
+            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+    },
+    {
         view: "competency",
-        label: "Competencies",
-        shortLabel: "Comp",
+        label: "Competency Matrix",
+        shortLabel: "Competencies",
         icon: BookOpen,
         activeClass:
             "bg-teal-100 text-teal-700 shadow-md ring-2 ring-teal-200",
@@ -2395,8 +2908,28 @@ const TABS: {
             "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
     },
     {
+        view: "quiz",
+        label: "Quizzes (Know)",
+        shortLabel: "Quizzes",
+        icon: Brain,
+        activeClass:
+            "bg-blue-100 text-blue-700 shadow-md ring-2 ring-blue-200",
+        inactiveClass:
+            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+    },
+    {
+        view: "believe",
+        label: "Mindsets (Believe)",
+        shortLabel: "Mindsets",
+        icon: Heart,
+        activeClass:
+            "bg-purple-100 text-purple-700 shadow-md ring-2 ring-purple-200",
+        inactiveClass:
+            "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+    },
+    {
         view: "wave",
-        label: "Waves",
+        label: "Wave Timeline",
         shortLabel: "Waves",
         icon: Waves,
         activeClass:
@@ -2406,7 +2939,7 @@ const TABS: {
     },
     {
         view: "overall",
-        label: "Overview",
+        label: "Program Overview",
         shortLabel: "Overview",
         icon: BarChart3,
         activeClass:
@@ -2428,6 +2961,9 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
     const [drafts, setDrafts] = useState<Record<string, Record<string, number>>>({});
     const [notice, setNotice] = useState<string | null>(null);
 
+    // Track which exam attempt cards are expanded
+    const [expandedAttemptIds, setExpandedAttemptIds] = useState<Set<string>>(new Set());
+
     const load = async () => {
         setLoading(true);
         try {
@@ -2439,6 +2975,10 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                 initialDrafts[a.id] = { ...(a.written_scores || {}) };
             });
             setDrafts(initialDrafts);
+            // Default expand the first exam attempt if available
+            if (finished.length > 0) {
+                setExpandedAttemptIds(new Set([finished[0].id]));
+            }
         } catch (e) {
             console.error("Failed to load examination attempts", e);
         } finally {
@@ -2450,6 +2990,18 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
+
+    const toggleExpand = (attemptId: string) => {
+        setExpandedAttemptIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(attemptId)) {
+                next.delete(attemptId);
+            } else {
+                next.add(attemptId);
+            }
+            return next;
+        });
+    };
 
     const setWrittenScore = (attemptId: string, questionId: string, value: number) => {
         setDrafts((prev) => ({
@@ -2467,7 +3019,7 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                 "Admin"
             );
             setAttempts((prev) => prev.map((a) => (a.id === attempt.id ? updated : a)));
-            setNotice("Grades saved.");
+            setNotice("Grades saved successfully.");
             window.setTimeout(() => setNotice(null), 2500);
         } catch (e) {
             console.error("Failed to save grades", e);
@@ -2499,22 +3051,22 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
             <div className="flex items-start justify-between gap-4">
                 <SectionHeader
                     icon={GraduationCap}
-                    title="Examination Review & Grading"
-                    description="Review answers and award marks for written responses."
+                    title="Examinations & Grading"
+                    description="Review fellow examination attempts, evaluate written answers, and publish grades."
                     color="bg-blue-100 text-blue-700"
                 />
                 <Button
                     variant="outline"
                     size="sm"
                     onClick={() => load()}
-                    className="shrink-0 rounded-xl"
+                    className="shrink-0 rounded-xl gap-2 font-bold"
                 >
                     Refresh
                 </Button>
             </div>
 
             {notice && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 animate-in fade-in">
                     {notice}
                 </div>
             )}
@@ -2522,7 +3074,7 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
             {attempts.length === 0 ? (
                 <EmptyState message="This fellow has not submitted any examinations yet." />
             ) : (
-                <div className="space-y-6">
+                <div className="space-y-5">
                     {attempts.map((attempt) => {
                         const competencyResults = attempt.competency_results || [];
                         const hasUngradedWritten = competencyResults.some((r) => !r.graded);
@@ -2531,185 +3083,253 @@ function ExaminationReviewPanel({ userId }: { userId: string }) {
                             (attempt.competency_snapshots || []).some((snap) =>
                                 snap.questions.some((q) => q.type === "written")
                             );
+                        const isExpanded = expandedAttemptIds.has(attempt.id);
+                        const totalEarned = competencyResults.reduce(
+                            (sum, r) => sum + (r.marks_earned ?? r.mcq_correct),
+                            0
+                        );
+                        const totalMax = competencyResults.reduce(
+                            (sum, r) => sum + (r.marks_total ?? r.mcq_total + r.written_total),
+                            0
+                        );
+
                         return (
-                            <Card key={attempt.id} className="rounded-3xl border-2 border-[#E8E4D8] overflow-hidden">
-                                <CardHeader className="bg-muted/30 flex flex-row items-center justify-between gap-3 flex-wrap">
-                                    <div className="min-w-0">
-                                        <CardTitle className="text-base sm:text-lg font-serif truncate">{attempt.title}</CardTitle>
-                                        <p className="text-[11px] text-muted-foreground">
-                                            Submitted {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "—"}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Badge
+                            <Card
+                                key={attempt.id}
+                                className={cn(
+                                    "rounded-3xl border-2 transition-all overflow-hidden",
+                                    isExpanded
+                                        ? "border-[#1B4332] shadow-lg"
+                                        : "border-[#E8E4D8] hover:border-[#1B4332]/40 bg-white"
+                                )}
+                            >
+                                {/* Clickable Header / Selection Card */}
+                                <div
+                                    onClick={() => toggleExpand(attempt.id)}
+                                    className="p-4 sm:p-5 md:p-6 bg-stone-50/80 hover:bg-stone-100/80 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3.5 min-w-0">
+                                        <div
                                             className={cn(
-                                                "rounded-full",
+                                                "size-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs",
                                                 attempt.status === "graded"
-                                                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                                    : "bg-blue-100 text-blue-700 border-blue-200"
+                                                    ? "bg-emerald-100 text-emerald-800"
+                                                    : "bg-blue-100 text-blue-800"
                                             )}
                                         >
-                                            {attempt.status === "graded" ? "Graded" : "Awaiting Review"}
-                                        </Badge>
-                                        <Badge variant="outline" className="rounded-full font-black">
-                                            {formatExaminationMarks(
-                                                competencyResults.reduce(
-                                                    (sum, r) => sum + (r.marks_earned ?? r.mcq_correct),
-                                                    0
-                                                ),
-                                                competencyResults.reduce(
-                                                    (sum, r) => sum + (r.marks_total ?? r.mcq_total + r.written_total),
-                                                    0
-                                                )
-                                            )}
-                                        </Badge>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-5 space-y-6">
-                                    {attempt.competency_snapshots.map((snap) => {
-                                        const result = competencyResults.find(
-                                            (r) => r.competency_id === snap.competency_id
-                                        );
-                                        return (
-                                            <div key={snap.competency_id} className="space-y-3">
-                                                <div className="flex items-center justify-between gap-2 border-b border-[#E8E4D8] pb-2">
-                                                    <h4 className="text-sm font-black uppercase tracking-widest text-primary">
-                                                        {snap.competency_title}
-                                                    </h4>
-                                                    {result && (
-                                                        <span className="text-xs font-bold text-muted-foreground">
-                                                            {formatExaminationMarks(
-                                                                result.marks_earned ?? result.mcq_correct,
-                                                                result.marks_total ?? result.mcq_total + result.written_total
-                                                            )}{" "}
-                                                            marks
-                                                        </span>
+                                            <GraduationCap className="size-6" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge
+                                                    className={cn(
+                                                        "rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider",
+                                                        attempt.status === "graded"
+                                                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                                            : "bg-blue-100 text-blue-800 border-blue-300"
                                                     )}
-                                                </div>
+                                                >
+                                                    {attempt.status === "graded" ? "Graded" : "Awaiting Review"}
+                                                </Badge>
+                                                {hasUngradedWritten && (
+                                                    <Badge className="bg-amber-100 text-amber-800 border-amber-300 rounded-full px-2.5 py-0.5 text-[10px] font-black">
+                                                        Needs Score
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <h3 className="text-base sm:text-lg font-serif font-bold text-foreground truncate">
+                                                {attempt.title}
+                                            </h3>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Submitted {attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : "—"}
+                                            </p>
+                                        </div>
+                                    </div>
 
-                                                {snap.questions.map((q, qi) => {
-                                                    const answer = attempt.answers?.[q.id];
-                                                    if (q.type === "multiple_choice") {
-                                                        const correct = Number(answer) === q.correct_option_index;
-                                                        return (
-                                                            <div key={q.id} className="rounded-2xl border border-[#E8E4D8] p-4 space-y-2">
-                                                                <p className="text-sm font-semibold text-foreground">
-                                                                    {qi + 1}. {q.text}
-                                                                </p>
-                                                                <div className="space-y-1">
-                                                                    {q.options.map((opt, oi) => (
-                                                                        <div
-                                                                            key={oi}
-                                                                            className={cn(
-                                                                                "flex items-center gap-2 text-xs px-3 py-2 rounded-lg",
-                                                                                oi === q.correct_option_index
-                                                                                    ? "bg-emerald-50 text-emerald-700 font-bold"
-                                                                                    : Number(answer) === oi
-                                                                                        ? "bg-red-50 text-red-700"
-                                                                                        : "text-muted-foreground"
-                                                                            )}
-                                                                        >
-                                                                            <span className="font-black">{String.fromCharCode(65 + oi)}.</span>
-                                                                            <span className="flex-1">{opt}</span>
-                                                                            {oi === q.correct_option_index && <CheckCircle2 className="size-4" />}
-                                                                            {Number(answer) === oi && oi !== q.correct_option_index && <X className="size-4" />}
-                                                                        </div>
-                                                                    ))}
+                                    <div className="flex items-center justify-between md:justify-end gap-3.5 pt-3 md:pt-0 border-t md:border-t-0 border-[#E8E4D8]">
+                                        <div className="bg-white px-4 py-2 rounded-2xl border-2 border-[#E8E4D8] text-center shadow-xs">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                                Total Score
+                                            </p>
+                                            <p className="text-base sm:text-lg font-serif font-black text-[#1B4332]">
+                                                {formatExaminationMarks(totalEarned, totalMax)}
+                                            </p>
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="rounded-xl gap-2 font-bold text-xs text-[#1B4332] border-[#E8E4D8] bg-white hover:bg-emerald-50"
+                                        >
+                                            <span>{isExpanded ? "Hide Questions" : "View Questions & Grade"}</span>
+                                            {isExpanded ? <ChevronUp className="size-4 text-primary" /> : <ChevronDown className="size-4 text-primary" />}
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Expandable Details Section */}
+                                {isExpanded && (
+                                    <CardContent className="p-4 sm:p-6 md:p-8 space-y-6 border-t-2 border-[#E8E4D8] bg-white animate-in fade-in duration-200">
+                                        {attempt.competency_snapshots.map((snap) => {
+                                            const result = competencyResults.find(
+                                                (r) => r.competency_id === snap.competency_id
+                                            );
+                                            return (
+                                                <div key={snap.competency_id} className="space-y-4">
+                                                    <div className="flex items-center justify-between gap-2 border-b-2 border-[#E8E4D8] pb-2.5">
+                                                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-widest text-[#1B4332]">
+                                                            {snap.competency_title}
+                                                        </h4>
+                                                        {result && (
+                                                            <Badge className="bg-[#1B4332]/10 text-[#1B4332] text-xs font-bold rounded-full px-3 py-1">
+                                                                {formatExaminationMarks(
+                                                                    result.marks_earned ?? result.mcq_correct,
+                                                                    result.marks_total ?? result.mcq_total + result.written_total
+                                                                )}{" "}
+                                                                marks
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+
+                                                    {snap.questions.map((q, qi) => {
+                                                        const answer = attempt.answers?.[q.id];
+                                                        if (q.type === "multiple_choice") {
+                                                            const correct = Number(answer) === q.correct_option_index;
+                                                            return (
+                                                                <div key={q.id} className="rounded-2xl border-2 border-[#E8E4D8] p-4 sm:p-5 space-y-3 bg-stone-50/50">
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <p className="text-sm font-bold text-foreground">
+                                                                            {qi + 1}. {q.text}
+                                                                        </p>
+                                                                        <Badge className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase shrink-0", correct ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800")}>
+                                                                            {answer === undefined ? "Not answered" : correct ? "Correct" : "Incorrect"}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="space-y-1.5 pt-1">
+                                                                        {q.options.map((opt, oi) => (
+                                                                            <div
+                                                                                key={oi}
+                                                                                className={cn(
+                                                                                    "flex items-center gap-2.5 text-xs px-3.5 py-2.5 rounded-xl border transition-all",
+                                                                                    oi === q.correct_option_index
+                                                                                        ? "bg-emerald-50 border-emerald-200 text-emerald-900 font-bold"
+                                                                                        : Number(answer) === oi
+                                                                                            ? "bg-red-50 border-red-200 text-red-900"
+                                                                                            : "bg-white border-[#E8E4D8] text-muted-foreground"
+                                                                                )}
+                                                                            >
+                                                                                <span className="font-black shrink-0">{String.fromCharCode(65 + oi)}.</span>
+                                                                                <span className="flex-1">{opt}</span>
+                                                                                {oi === q.correct_option_index && <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />}
+                                                                                {Number(answer) === oi && oi !== q.correct_option_index && <X className="size-4 text-red-600 shrink-0" />}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
-                                                                <p className={cn("text-[11px] font-black uppercase", correct ? "text-emerald-600" : "text-red-600")}>
-                                                                    {answer === undefined ? "Not answered" : correct ? "Correct" : "Incorrect"}
-                                                                </p>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <div key={q.id} className="rounded-2xl border-2 border-blue-200 bg-blue-50/30 p-4 sm:p-5 space-y-4">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <p className="text-sm font-bold text-foreground">
+                                                                        {qi + 1}. {q.text}
+                                                                    </p>
+                                                                    <Badge className="bg-blue-100 text-blue-800 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase shrink-0">
+                                                                        Written Question
+                                                                    </Badge>
+                                                                </div>
+                                                                <div className="rounded-2xl bg-white border-2 border-[#E8E4D8] p-4 space-y-1">
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                                                                        Fellow&apos;s Submitted Answer
+                                                                    </p>
+                                                                    <p className="text-sm font-serif italic text-[#1B4332] whitespace-pre-wrap leading-relaxed">
+                                                                        {(answer as string) || "— no answer provided —"}
+                                                                    </p>
+                                                                </div>
+                                                                {q.correct_written_answer && (
+                                                                    <div className="rounded-2xl bg-emerald-50/80 border-2 border-emerald-200 p-4 space-y-1">
+                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-800">
+                                                                            Grading Rubric / Model Answer
+                                                                        </p>
+                                                                        <p className="text-xs text-emerald-950 whitespace-pre-wrap leading-relaxed">{q.correct_written_answer}</p>
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-blue-200/60">
+                                                                    <label className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                                                                        <span>Award Marks (0.0 to 1.0):</span>
+                                                                    </label>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            max={1}
+                                                                            step={0.1}
+                                                                            value={
+                                                                                drafts[attempt.id]?.[q.id] ?? ""
+                                                                            }
+                                                                            onChange={(e) =>
+                                                                                setWrittenScore(
+                                                                                    attempt.id,
+                                                                                    q.id,
+                                                                                    Math.max(0, Math.min(1, Number(e.target.value)))
+                                                                                )
+                                                                            }
+                                                                            className="w-32 h-10 rounded-xl font-serif font-bold text-sm border-2 border-blue-300 bg-white"
+                                                                            placeholder="Score (0–1)"
+                                                                        />
+                                                                        <span className="text-xs font-bold text-blue-900">/ 1.0 mark</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         );
-                                                    }
-                                                    return (
-                                                        <div key={q.id} className="rounded-2xl border border-blue-100 bg-blue-50/30 p-4 space-y-3">
-                                                            <p className="text-sm font-semibold text-foreground">
-                                                                {qi + 1}. {q.text}
-                                                            </p>
-                                                            <div className="rounded-xl bg-white border border-[#E8E4D8] p-3">
-                                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">
-                                                                    Fellow&apos;s answer
-                                                                </p>
-                                                                <p className="text-sm font-serif italic text-[#1B4332] whitespace-pre-wrap">
-                                                                    {(answer as string) || "— no answer —"}
-                                                                </p>
-                                                            </div>
-                                                            {q.correct_written_answer && (
-                                                                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
-                                                                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1">
-                                                                        Rubric / model answer
-                                                                    </p>
-                                                                    <p className="text-xs text-emerald-900 whitespace-pre-wrap">{q.correct_written_answer}</p>
-                                                                </div>
-                                                            )}
-                                                            <div className="flex items-center gap-3">
-                                                                <label className="text-[11px] font-black uppercase tracking-widest text-blue-700">
-                                                                    Marks (0–1 per question)
-                                                                </label>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    max={1}
-                                                                    step={0.1}
-                                                                    value={
-                                                                        drafts[attempt.id]?.[q.id] ?? ""
-                                                                    }
-                                                                    onChange={(e) =>
-                                                                        setWrittenScore(
-                                                                            attempt.id,
-                                                                            q.id,
-                                                                            Math.max(0, Math.min(1, Number(e.target.value)))
-                                                                        )
-                                                                    }
-                                                                    className="w-28 rounded-xl"
-                                                                    placeholder="0 – 1"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    })}
+                                                    })}
+                                                </div>
+                                            );
+                                        })}
 
-                                    {hasWrittenQuestions ? (
-                                        <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8E4D8]">
-                                            {hasUngradedWritten && (
-                                                <span className="text-xs text-amber-600 font-medium mr-auto flex items-center gap-1">
-                                                    <Clock className="size-3" /> Written answers still need scores.
-                                                </span>
-                                            )}
-                                            <Button
-                                                onClick={() => handleSaveGrades(attempt)}
-                                                disabled={savingId === attempt.id}
-                                                className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold"
-                                            >
-                                                {savingId === attempt.id ? (
-                                                    <Loader2 className="size-4 animate-spin mr-2" />
+                                        {/* Action Controls for this Examination */}
+                                        {hasWrittenQuestions ? (
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t-2 border-[#E8E4D8]">
+                                                {hasUngradedWritten ? (
+                                                    <span className="text-xs text-amber-700 font-bold flex items-center gap-1.5">
+                                                        <Clock className="size-4" /> Written answers pending evaluation.
+                                                    </span>
                                                 ) : (
-                                                    <Check className="size-4 mr-2" />
+                                                    <span className="text-xs text-emerald-700 font-bold flex items-center gap-1.5">
+                                                        <CheckCircle2 className="size-4" /> All written answers evaluated.
+                                                    </span>
                                                 )}
-                                                Save Grades
-                                            </Button>
-                                        </div>
-                                    ) : attempt.status === "submitted" && (
-                                        <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#E8E4D8]">
-                                            <Button
-                                                onClick={() => handleApproveResults(attempt)}
-                                                disabled={savingId === attempt.id}
-                                                className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold"
-                                            >
-                                                {savingId === attempt.id ? (
-                                                    <Loader2 className="size-4 animate-spin mr-2" />
-                                                ) : (
-                                                    <Check className="size-4 mr-2" />
-                                                )}
-                                                Approve Results
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CardContent>
+                                                <Button
+                                                    onClick={() => handleSaveGrades(attempt)}
+                                                    disabled={savingId === attempt.id}
+                                                    className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold shadow-md hover:bg-[#1B4332]/90"
+                                                >
+                                                    {savingId === attempt.id ? (
+                                                        <Loader2 className="size-4 animate-spin mr-2" />
+                                                    ) : (
+                                                        <Check className="size-4 mr-2" />
+                                                    )}
+                                                    Save & Publish Grades
+                                                </Button>
+                                            </div>
+                                        ) : attempt.status === "submitted" && (
+                                            <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-[#E8E4D8]">
+                                                <Button
+                                                    onClick={() => handleApproveResults(attempt)}
+                                                    disabled={savingId === attempt.id}
+                                                    className="rounded-2xl h-11 px-6 bg-[#1B4332] text-white font-bold shadow-md hover:bg-[#1B4332]/90"
+                                                >
+                                                    {savingId === attempt.id ? (
+                                                        <Loader2 className="size-4 animate-spin mr-2" />
+                                                    ) : (
+                                                        <Check className="size-4 mr-2" />
+                                                    )}
+                                                    Approve & Publish Results
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                )}
                             </Card>
                         );
                     })}
@@ -2724,7 +3344,7 @@ export default function FellowProgressTracker({
     fellowName,
     userId,
 }: FellowProgressTrackerProps) {
-    const [activeView, setActiveView] = useState<TrackingView>("portfolio");
+    const [activeView, setActiveView] = useState<TrackingView>("performance");
     const [reviewingPortfolio, setReviewingPortfolio] =
         useState<Portfolio | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -3011,6 +3631,7 @@ export default function FellowProgressTracker({
                         portfolios={portfolios}
                         biLookup={biLookup}
                         compLookup={compLookup}
+                        competencyWaveMeta={competencyWaveMeta}
                         onReview={setReviewingPortfolio}
                     />
                 );
@@ -3045,6 +3666,7 @@ export default function FellowProgressTracker({
                         portfolios={portfolios}
                         examAttempts={examAttempts}
                         groundingResults={groundingResults}
+                        competencyWaveMeta={competencyWaveMeta}
                     />
                 );
             case "wave":
