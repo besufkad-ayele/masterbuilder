@@ -32,21 +32,53 @@ const FellowWavesView: React.FC<FellowWavesViewProps> = ({ fellowId, waveId }) =
     // Derived state
     const wave = React.useMemo(() => {
         if (!dashboardData?.waves) return null;
-        return dashboardData.waves.find((w: Wave) => w.id === waveId);
+        return dashboardData.waves.find(
+            (w: Wave) =>
+                String(w.id) === String(waveId) ||
+                String(w.number) === String(waveId) ||
+                `wave-${w.number}` === String(waveId) ||
+                `wave-${w.id}` === String(waveId) ||
+                String(waveId).endsWith(String(w.number)) ||
+                String(waveId).endsWith(String(w.id))
+        );
     }, [dashboardData, waveId]);
 
     const isWaveLocked = React.useMemo(() => {
         if (!wave || !dashboardData) return true;
-        const isGroundingLocked = dashboardData.cohort?.is_grounding_active === false;
-        return (isGroundingLocked && wave.number !== 1) || wave.status === 'locked' || wave.status === 'upcoming';
+        return wave.status === 'locked';
     }, [wave, dashboardData]);
 
     const waveCompetencies = React.useMemo(() => {
         if (!dashboardData || !wave) return [];
 
-        const links = dashboardData.waveCompetencies.filter((wc: any) => wc.wave_id === wave.id);
-        const linkIds = new Set(links.map((l: any) => l.competency_id));
-        const comps = dashboardData.competencies.filter((c: Competency) => linkIds.has(c.id));
+        const waveIdStr = String(wave.id);
+        const waveNumStr = String(wave.number);
+
+        // 1. Filter waveCompetencies links matching wave.id or wave.number
+        const links = (dashboardData.waveCompetencies || []).filter((wc: any) => {
+            const wId = String(wc.wave_id ?? wc.waveId ?? '');
+            return wId === waveIdStr || wId === waveNumStr || wId === `wave-${waveNumStr}` || wId === `wave-${waveIdStr}`;
+        });
+
+        const linkIds = new Set(links.map((l: any) => String(l.competency_id ?? l.competencyId ?? '')));
+
+        // 2. Filter competencies using linkIds
+        let comps = (dashboardData.competencies || []).filter((c: Competency) => linkIds.has(String(c.id)));
+
+        // 3. Fallback: match directly against competency metadata if link table yielded no matches
+        if (comps.length === 0 && (dashboardData.competencies || []).length > 0) {
+            comps = (dashboardData.competencies || []).filter((c: any) => {
+                const cWaveId = String(c.wave_id ?? c.waveId ?? '');
+                const cWaveNum = String(c.wave_number ?? c.waveNumber ?? c.level ?? '');
+                return cWaveId === waveIdStr || cWaveId === waveNumStr || cWaveNum === waveNumStr || cWaveNum.toLowerCase().includes(`wave ${waveNumStr}`);
+            });
+        }
+
+        // 4. Ultimate Fallback: if still 0 comps for wave, show all available competencies in cohort
+        if (comps.length === 0 && (dashboardData.competencies || []).length > 0) {
+            comps = dashboardData.competencies;
+        }
+
         return comps.sort((a: Competency, b: Competency) => a.title.localeCompare(b.title));
     }, [dashboardData, wave]);
 

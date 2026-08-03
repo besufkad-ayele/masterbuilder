@@ -154,13 +154,13 @@ const FellowSidebar: React.FC<FellowSidebarProps> = ({ fellowId }) => {
         {/* Portfolio & Performance */}
         {hasEnabledExams && (
           <div className="pt-4 border-t border-[#E8E4D8]/50 space-y-1">
-          <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B9B7E]">Leadership Portfolio</p>
-          <NavItem
-            icon={GraduationCap}
-            title="Examinations"
-            tab="exams"
-            isActive={currentTab === 'exams'}
-          />
+            <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B9B7E]">Leadership Portfolio</p>
+            <NavItem
+              icon={GraduationCap}
+              title="Examinations"
+              tab="exams"
+              isActive={currentTab === 'exams'}
+            />
           </div>
         )}
       </div>

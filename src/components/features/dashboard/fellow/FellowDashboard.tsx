@@ -67,20 +67,40 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       (fellowState.waves as Wave[]).find(w => w.status === 'active');
 
     const isGroundingLocked = fellowState.cohort?.is_grounding_active === false;
-    const currentWaveIsLocked = wave ? ((isGroundingLocked && wave.number !== 1) || wave.status === 'locked' || wave.status === 'upcoming') : true;
+    const currentWaveIsLocked = wave ? wave.status === 'locked' : false;
 
     // 2. Grounding Score
     const gScore = (fellowState.groundingResults || [])[0]?.score || 0;
 
     // 3. Process all waves and their competencies
     const wavesData = (fellowState.waves as Wave[]).sort((a, b) => a.number - b.number).map(w => {
-      const isLocked = (isGroundingLocked && w.number !== 1) || w.status === 'locked' || w.status === 'upcoming';
+      const isLocked = w.status === 'locked';
 
-      const compLinks = (fellowState.waveCompetencies as WaveCompetency[]).filter(wc => wc.wave_id === w.id);
-      const compIds = new Set(compLinks.map(l => l.competency_id));
+      const waveIdStr = String(w.id);
+      const waveNumStr = String(w.number);
 
-      const comps = (fellowState.competencies as Competency[])
-        .filter(c => compIds.has(c.id))
+      const compLinks = (fellowState.waveCompetencies as WaveCompetency[] || []).filter(wc => {
+        const wId = String(wc.wave_id ?? (wc as any).waveId ?? '');
+        return wId === waveIdStr || wId === waveNumStr || wId === `wave-${waveNumStr}` || wId === `wave-${waveIdStr}`;
+      });
+
+      const compIds = new Set(compLinks.map(l => String(l.competency_id ?? (l as any).competencyId ?? '')));
+
+      let rawComps = (fellowState.competencies as Competency[] || []).filter(c => compIds.has(String(c.id)));
+
+      if (rawComps.length === 0 && (fellowState.competencies || []).length > 0) {
+        rawComps = (fellowState.competencies as any[] || []).filter(c => {
+          const cWaveId = String(c.wave_id ?? c.waveId ?? '');
+          const cWaveNum = String(c.wave_number ?? c.waveNumber ?? c.level ?? '');
+          return cWaveId === waveIdStr || cWaveId === waveNumStr || cWaveNum === waveNumStr || cWaveNum.toLowerCase().includes(`wave ${waveNumStr}`);
+        });
+      }
+
+      if (rawComps.length === 0 && (fellowState.competencies || []).length > 0) {
+        rawComps = fellowState.competencies as Competency[];
+      }
+
+      const comps = rawComps
         .map(comp => {
           const performance = buildCompetencyPerformance(comp, {
             progress: fellowState.progress as PhaseProgress[],
@@ -120,7 +140,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       };
     });
 
-    const currentWaveComps = wavesData.find(wd => wd.wave.id === wave?.id)?.competencies || [];
+    const currentWaveComps = wavesData.flatMap(wd => wd.competencies);
 
     // Overall Progress Calculation
     const allWeightedScores = wavesData.flatMap(wd => wd.competencies.map(c => c.progressPercent));
@@ -629,18 +649,18 @@ const PerformanceView: React.FC<{ waves: any[], groundingScore: number }> = ({ w
                     const believePassedCount = selectedComp.biBreakdown?.filter((bi: BreakdownItem) => bi.believePassed).length || 0;
                     const avgKnow = totalBIs > 0
                       ? Math.round(
-                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.knowContribution, 0) / totalBIs
-                        )
+                        (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.knowContribution, 0) / totalBIs
+                      )
                       : 0;
                     const avgDo = totalBIs > 0
                       ? Math.round(
-                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.doContribution, 0) / totalBIs
-                        )
+                        (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.doContribution, 0) / totalBIs
+                      )
                       : 0;
                     const avgScore = totalBIs > 0
                       ? Math.round(
-                          (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.score, 0) / totalBIs
-                        )
+                        (selectedComp.biBreakdown as BreakdownItem[]).reduce((sum, bi) => sum + bi.score, 0) / totalBIs
+                      )
                       : 0;
                     const groundingAdvantage = selectedComp.groundingContribution || 0;
                     const examContribution = selectedComp.examContribution || 0;
