@@ -255,7 +255,34 @@ export const appService = {
     fellow: {
         async getDashboardState(userId: string): Promise<FellowDashboardState | null> {
             const data = await fellowsApi.getDashboard(userId) as Record<string, unknown> | null;
-            return data ? mapFellowDashboard(data) : null;
+            if (!data) return null;
+
+            const mapped = mapFellowDashboard(data);
+
+            try {
+                const [allWaveComps, allComps] = await Promise.all([
+                    progressApi.getWaveCompetencies() as Promise<Record<string, unknown>[]>,
+                    competenciesApi.getAll() as Promise<Record<string, unknown>[]>,
+                ]);
+
+                if (allWaveComps && Array.isArray(allWaveComps)) {
+                    const mappedWaveComps = allWaveComps.map(mapWaveCompetency);
+                    const existingLinkIds = new Set((mapped.waveCompetencies || []).map(wc => `${wc.wave_id}_${wc.competency_id}`));
+                    const newWaveComps = mappedWaveComps.filter(wc => !existingLinkIds.has(`${wc.wave_id}_${wc.competency_id}`));
+                    mapped.waveCompetencies = [...(mapped.waveCompetencies || []), ...newWaveComps];
+                }
+
+                if (allComps && Array.isArray(allComps)) {
+                    const mappedComps = allComps.map(mapCompetency);
+                    const existingCompIds = new Set((mapped.competencies || []).map(c => c.id));
+                    const newComps = mappedComps.filter(c => !existingCompIds.has(c.id));
+                    mapped.competencies = [...(mapped.competencies || []), ...newComps];
+                }
+            } catch (e) {
+                console.warn("Fallback fetching for fellow dashboard wave competencies failed:", e);
+            }
+
+            return mapped;
         },
 
         async getWaveCompetenceIds(waveId?: string): Promise<string[]> {

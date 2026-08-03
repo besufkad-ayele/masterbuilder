@@ -91,13 +91,9 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       if (rawComps.length === 0 && (fellowState.competencies || []).length > 0) {
         rawComps = (fellowState.competencies as any[] || []).filter(c => {
           const cWaveId = String(c.wave_id ?? c.waveId ?? '');
-          const cWaveNum = String(c.wave_number ?? c.waveNumber ?? c.level ?? '');
-          return cWaveId === waveIdStr || cWaveId === waveNumStr || cWaveNum === waveNumStr || cWaveNum.toLowerCase().includes(`wave ${waveNumStr}`);
+          const cWaveNum = String(c.wave_number ?? c.waveNumber ?? '');
+          return cWaveId === waveIdStr || cWaveId === waveNumStr || cWaveNum === waveNumStr;
         });
-      }
-
-      if (rawComps.length === 0 && (fellowState.competencies || []).length > 0) {
-        rawComps = fellowState.competencies as Competency[];
       }
 
       const comps = rawComps
@@ -140,7 +136,7 @@ const FellowDashboard: React.FC<FellowDashboardProps> = ({ fellowId }) => {
       };
     });
 
-    const currentWaveComps = wavesData.flatMap(wd => wd.competencies);
+    const currentWaveComps = wavesData.find(wd => wd.wave.id === wave?.id)?.competencies || wavesData[0]?.competencies || [];
 
     // Overall Progress Calculation
     const allWeightedScores = wavesData.flatMap(wd => wd.competencies.map(c => c.progressPercent));
