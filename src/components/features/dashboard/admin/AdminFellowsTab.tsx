@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, type ChangeEvent } from "react";
 import {
     Search,
     MoreHorizontal,
@@ -21,6 +21,9 @@ import {
     FolderKanban,
     GraduationCap,
     Filter,
+    Download,
+    Upload,
+    AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,7 @@ import { FellowService } from "@/services/FellowService";
 import { ExamService } from "@/services/ExamService";
 import { FellowProgressService } from "@/services/FellowProgressService";
 import { exportFellowsPerformanceWorkbook } from "@/lib/export/fellowPerformanceExport";
+import { parseFellowImportFile, buildFellowImportPayload, type ParsedFellowImportRow } from "@/lib/import/fellowImport";
 import { Company, FellowProfile, Cohort } from "@/types";
 
 // ─── Fellow Actions Component ─────────────────────────────────────────────────
@@ -532,6 +536,142 @@ export default function AdminFellowsTab() {
     const [cohortSearchTerm, setCohortSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState<"profile" | "progress">("profile");
     const [isExporting, setIsExporting] = useState(false);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [importRows, setImportRows] = useState<ParsedFellowImportRow[]>([]);
+    const [importError, setImportError] = useState<string | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
+    const [selectedImportCompanyId, setSelectedImportCompanyId] = useState("");
+    const [importFileName, setImportFileName] = useState("");
+
+    const handleDownloadTemplate = () => {
+        const headers = [
+            "full_name",
+            "email",
+            "company_id",
+            "organization",
+            "highest_qualification",
+            "current_role",
+            "leadership_experience_years",
+            "learning_goals",
+            "gender",
+            "age",
+            "primary_language",
+            "availability",
+            "leadership_track",
+            "key_skills",
+            "personality_style",
+            "constraints",
+        ];
+
+        const templateRow = [
+            "Jane Doe",
+            "jane@example.com",
+            companies[0]?.id || "COMP_001",
+            "Finance",
+            "MBA",
+            "Senior Finance Manager",
+            "7",
+            "Leadership Growth, Finance Excellence",
+            "Female",
+            "34",
+            "English",
+            "Weekdays (Morning)",
+            "Financial Strategy",
+            "Budgeting, Strategy",
+            "Analytical and collaborative",
+            "No travel restrictions",
+        ];
+
+        const csvContent = [headers.join(","), templateRow.join(",")].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "fellow-import-template.csv";
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setImportError(null);
+        setImportFileName(file.name);
+
+        try {
+            const parsed = await parseFellowImportFile(file, companies, cohorts);
+            if (!parsed.length) {
+                setImportRows([]);
+                setImportError("No rows were found in the selected file.");
+                return;
+            }
+
+            const invalidRows = parsed.filter((row) => row.errors.length > 0);
+            setImportRows(parsed);
+            if (parsed.length > 0 && invalidRows.length === parsed.length) {
+                setImportError("The file was read, but no valid fellow rows were found. Check the headers and required fields.");
+            }
+        } catch (error: any) {
+            setImportError(error?.message || "Failed to parse the selected Excel file.");
+        }
+    };
+
+    const handleImportSubmit = async () => {
+        const validRows = importRows.filter((row) => row.errors.length === 0);
+
+        if (!validRows.length) {
+            setImportError("Please upload a file with valid fellow rows before importing.");
+            return;
+        }
+
+        const companyIdToUse = selectedImportCompanyId || validRows[0]?.company_id;
+        if (!companyIdToUse) {
+            setImportError("Please select a company or include a company column in the spreadsheet.");
+            return;
+        }
+
+        setIsImporting(true);
+        setImportError(null);
+
+        let createdCount = 0;
+        const issues: string[] = [];
+
+        for (const row of validRows) {
+            const finalCompanyId = row.company_id || companyIdToUse;
+            const selectedCompany = companies.find((company) => company.id === finalCompanyId);
+
+            try {
+                const payload = buildFellowImportPayload(row, finalCompanyId, selectedCompany?.name);
+                if (!payload.full_name || !payload.email || !payload.company_id) {
+                    issues.push(`Row ${row.rowNumber}: missing full name, email, or company.`);
+                    continue;
+                }
+
+                await FellowService.createFellowWithAuth(row.email, row.full_name, payload);
+                createdCount += 1;
+            } catch (error: any) {
+                const message = error?.message || "unknown error";
+                issues.push(`Row ${row.rowNumber}: ${message}`);
+            }
+        }
+
+        setIsImporting(false);
+        setImportRows([]);
+        setImportFileName("");
+
+        if (createdCount > 0) {
+            await fetchData();
+        }
+
+        setImportDialogOpen(false);
+
+        if (issues.length > 0) {
+            setImportError(`Imported ${createdCount} fellows. ${issues.length} row(s) failed: ${issues.slice(0, 5).join("; ")}`);
+        } else if (createdCount > 0) {
+            setImportError(null);
+        }
+    };
 
     const handleExportToExcel = async () => {
         const targetFellows = selectedCohortId && selectedCohortId !== "all"
@@ -685,93 +825,514 @@ export default function AdminFellowsTab() {
         return fellows.find((f) => f.id === selectedId);
     }, [selectedId, fellows]);
 
-    // ─── Detail View (Fellow Profile/Progress) ───────────────────────────────
+    // ─── Bulk Import Dialog ─────────────────────────────────────────────────────
 
-    if (selectedId && selectedFellow) {
-        return (
-            <div className="w-full max-w-full overflow-hidden space-y-3 sm:space-y-4 md:space-y-5 px-1 sm:px-2 md:px-4 py-3 sm:py-4">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-[#E8E4D8] shadow-sm">
-                    <Button
-                        variant="ghost"
-                        onClick={() => setSelectedId(null)}
-                        className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-xl transition-all px-4 h-11 self-start sm:self-auto"
-                    >
-                        <ArrowLeft className="size-4" />
-                        <span>Back to Fellows List</span>
-                    </Button>
+    const importPreviewRows = importRows.slice(0, 8);
 
-                    <div className="flex items-center gap-2 p-1.5 bg-muted/20 rounded-2xl border border-[#E8E4D8] w-full sm:w-auto">
-                        <button
-                            onClick={() => setActiveTab("profile")}
-                            className={cn(
-                                "flex-1 sm:flex-none px-6 sm:px-8 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all text-center",
-                                activeTab === "profile"
-                                    ? "bg-primary text-white shadow-md"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-white/60"
-                            )}
+    return (
+        <>
+            <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2rem]">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-serif">Import Fellows from Excel</DialogTitle>
+                        <DialogDescription>
+                            Upload a CSV or XLSX file with one fellow per row. Leave blank cells empty; the app will use the selected company and auto-generate each fellow ID.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                            <div className="flex-1">
+                                <label className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2 block">
+                                    Company for this import
+                                </label>
+                                <select
+                                    value={selectedImportCompanyId}
+                                    onChange={(e) => setSelectedImportCompanyId(e.target.value)}
+                                    className="w-full h-11 rounded-xl border border-[#E8E4D8] bg-white px-3 text-sm"
+                                >
+                                    <option value="">Select company (or add company_id in file)</option>
+                                    {companies.map((company) => (
+                                        <option key={company.id} value={company.id}>
+                                            {company.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <Button variant="outline" className="rounded-full" onClick={handleDownloadTemplate}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download Template
+                            </Button>
+                        </div>
+
+                        <label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-6 text-center transition-colors hover:border-primary/50">
+                            <Upload className="h-5 w-5 text-primary" />
+                            <span className="font-medium text-primary">Choose Excel or CSV file</span>
+                            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                        </label>
+
+                        {importFileName && (
+                            <div className="rounded-xl border border-[#E8E4D8] bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                                Selected file: <span className="font-semibold text-foreground">{importFileName}</span>
+                            </div>
+                        )}
+
+                        {importError && (
+                            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>{importError}</span>
+                            </div>
+                        )}
+
+                        {importRows.length > 0 && (
+                            <div className="rounded-2xl border border-[#E8E4D8] bg-white overflow-hidden">
+                                <div className="border-b border-[#E8E4D8] bg-muted/20 px-4 py-3 text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                                    Preview ({importRows.length} rows found)
+                                </div>
+                                <div className="max-h-72 overflow-auto">
+                                    <table className="min-w-full text-left text-sm">
+                                        <thead className="bg-muted/20 text-muted-foreground">
+                                            <tr>
+                                                <th className="px-3 py-2 font-medium">Row</th>
+                                                <th className="px-3 py-2 font-medium">Name</th>
+                                                <th className="px-3 py-2 font-medium">Email</th>
+                                                <th className="px-3 py-2 font-medium">Company</th>
+                                                <th className="px-3 py-2 font-medium">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {importPreviewRows.map((row) => (
+                                                <tr key={`${row.rowNumber}-${row.email}`} className="border-t border-[#E8E4D8]">
+                                                    <td className="px-3 py-2">{row.rowNumber}</td>
+                                                    <td className="px-3 py-2">{row.full_name || "—"}</td>
+                                                    <td className="px-3 py-2">{row.email || "—"}</td>
+                                                    <td className="px-3 py-2">{row.company_id || selectedImportCompanyId || "—"}</td>
+                                                    <td className="px-3 py-2">
+                                                        {row.errors.length > 0 ? (
+                                                            <span className="text-amber-600">Needs review</span>
+                                                        ) : (
+                                                            <span className="text-emerald-600">Valid</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setImportDialogOpen(false)} className="rounded-full">
+                            Cancel
+                        </Button>
+                        <Button onClick={handleImportSubmit} disabled={isImporting || !importRows.length} className="rounded-full">
+                            {isImporting ? "Importing..." : "Register Fellows"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {selectedId && selectedFellow ? (
+                <div className="w-full max-w-full overflow-hidden space-y-3 sm:space-y-4 md:space-y-5 px-1 sm:px-2 md:px-4 py-3 sm:py-4">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl border border-[#E8E4D8] shadow-sm">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setSelectedId(null)}
+                            className="flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/40 rounded-xl transition-all px-4 h-11 self-start sm:self-auto"
                         >
-                            Profile Overview
-                        </button>
-                        <button
-                            onClick={() => setActiveTab("progress")}
-                            className={cn(
-                                "flex-1 sm:flex-none px-6 sm:px-8 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-2",
-                                activeTab === "progress"
-                                    ? "bg-primary text-white shadow-md"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-white/60"
-                            )}
-                        >
-                            <TrendingUp className="size-4" />
-                            <span>Performance & Progress</span>
-                        </button>
+                            <ArrowLeft className="size-4" />
+                            <span>Back to Fellows List</span>
+                        </Button>
+
+                        <div className="flex items-center gap-2 p-1.5 bg-muted/20 rounded-2xl border border-[#E8E4D8] w-full sm:w-auto">
+                            <button
+                                onClick={() => setActiveTab("profile")}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-6 sm:px-8 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all text-center",
+                                    activeTab === "profile"
+                                        ? "bg-primary text-white shadow-md"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-white/60"
+                                )}
+                            >
+                                Profile Overview
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("progress")}
+                                className={cn(
+                                    "flex-1 sm:flex-none px-6 sm:px-8 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all text-center flex items-center justify-center gap-2",
+                                    activeTab === "progress"
+                                        ? "bg-primary text-white shadow-md"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-white/60"
+                                )}
+                            >
+                                <TrendingUp className="size-4" />
+                                <span>Performance & Progress</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {activeTab === "profile" ? (
+                        <div className="bg-white rounded-2xl sm:rounded-[1.75rem] md:rounded-[2rem] p-3 sm:p-4 md:p-6 shadow-lg border border-primary/10 overflow-hidden animate-in fade-in duration-300">
+                            <UserProfileDetail
+                                user={{
+                                    ...selectedFellow,
+                                    role: "Fellow",
+                                    company: selectedFellow.companyName,
+                                    location: "Addis Ababa, Ethiopia",
+                                    joinedDate: new Date(
+                                        selectedFellow.created_at
+                                    ).toLocaleDateString(),
+                                }}
+                                isEditable={false}
+                                onUpdate={fetchData}
+                                onNavigateToProgress={() => setActiveTab("progress")}
+                            />
+                        </div>
+                    ) : (
+                        <div className="w-full max-w-full overflow-hidden bg-white rounded-2xl sm:rounded-[1.75rem] md:rounded-[2rem] p-3 sm:p-4 md:p-5 shadow-lg border border-primary/10 animate-in fade-in duration-300">
+                            <div className="flex items-center gap-2.5 sm:gap-3 mb-4 pb-4 border-b border-dashed border-[#E8E4D8]">
+                                <div className="size-9 sm:size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                    <TrendingUp className="size-4 sm:size-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-primary/70">
+                                        Progress Dashboard
+                                    </p>
+                                    <p className="text-sm sm:text-base font-semibold text-foreground leading-tight truncate">
+                                        {selectedFellow.full_name || selectedFellow.name}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <FellowProgressTracker
+                                fellowId={selectedFellow.id}
+                                fellowName={selectedFellow.full_name || selectedFellow.name}
+                                userId={selectedFellow.user_id}
+                            />
+                        </div>
+                    )}
+                </div>
+            ) : selectedCohortId === null ? (
+                <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4 md:py-5">
+                    {/* Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                        <div className="space-y-1.5 sm:space-y-2 flex-1">
+                            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-primary font-bold">
+                                Fellowship Workspace
+                            </p>
+                            <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-foreground leading-tight">
+                                Select a Cohort
+                            </h1>
+                            <p className="text-xs sm:text-sm text-muted-foreground max-w-xl font-serif italic leading-relaxed">
+                                Choose a learning cohort below to view, manage, and monitor its enrolled fellows.
+                            </p>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                className="rounded-full"
+                                onClick={() => {
+                                    setImportRows([]);
+                                    setImportFileName("");
+                                    setImportError(null);
+                                    setImportDialogOpen(true);
+                                }}
+                            >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Import Fellows
+                            </Button>
+                            <FellowCreationForm onFellowCreated={fetchData} />
+                        </div>
+                    </div>
+
+                    {/* Cohort Search & Filter bar */}
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-[#E8E4D8] shadow-sm">
+                        <div className="relative w-full sm:flex-1 sm:max-w-sm">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/50 size-4" />
+                            <Input
+                                placeholder="Search cohorts or companies..."
+                                value={cohortSearchTerm}
+                                onChange={(e) => setCohortSearchTerm(e.target.value)}
+                                className="pl-9 h-10 rounded-lg sm:rounded-xl border-[#E8E4D8] focus:border-primary text-sm"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-2 text-xs font-medium text-muted-foreground">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30">
+                                <FolderKanban className="size-4 text-primary" />
+                                <span><strong className="text-primary">{cohorts.length}</strong> Cohorts Total</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/30">
+                                <Users className="size-4 text-primary" />
+                                <span><strong className="text-primary">{fellows.length}</strong> Enrolled Fellows</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Cohort Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                        {loading ? (
+                            Array(6)
+                                .fill(0)
+                                .map((_, i) => <CohortCardSkeleton key={i} />)
+                        ) : (
+                            <>
+                                <SummaryCohortCard
+                                    title="All Fellows Roster"
+                                    subtitle="View complete fellow directory across all learning cohorts"
+                                    fellowCount={fellows.length}
+                                    icon={GraduationCap}
+                                    variant="primary"
+                                    onSelect={() => setSelectedCohortId("all")}
+                                />
+
+                                {unassignedFellowsCount > 0 && (
+                                    <SummaryCohortCard
+                                        title="Unassigned Fellows"
+                                        subtitle="Fellows not currently assigned to any specific cohort"
+                                        fellowCount={unassignedFellowsCount}
+                                        icon={UserIcon}
+                                        variant="secondary"
+                                        onSelect={() => setSelectedCohortId("unassigned")}
+                                    />
+                                )}
+
+                                {filteredCohorts.map((cohort) => {
+                                    const companyName =
+                                        companies.find((comp) => comp.id === cohort.company_id)?.name ||
+                                        "Organization";
+                                    const count = fellows.filter((f) => f.cohort_id === cohort.id).length;
+
+                                    return (
+                                        <CohortCard
+                                            key={cohort.id}
+                                            cohort={cohort}
+                                            companyName={companyName}
+                                            fellowCount={count}
+                                            onSelect={() => setSelectedCohortId(cohort.id)}
+                                        />
+                                    );
+                                })}
+                            </>
+                        )}
                     </div>
                 </div>
+            ) : (
+                <div className="space-y-4 sm:space-y-5 md:space-y-6 animate-in fade-in duration-500 px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4 md:py-5">
+                    <div className="flex flex-col gap-4 sm:gap-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <Button
+                                variant="ghost"
+                                onClick={() => setSelectedCohortId(null)}
+                                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground hover:bg-white/50 rounded-full transition-all font-medium px-3.5 h-9"
+                            >
+                                <ArrowLeft className="size-4" />
+                                <span>Back to Cohorts</span>
+                            </Button>
 
-                {activeTab === "profile" ? (
-                    <div className="bg-white rounded-2xl sm:rounded-[1.75rem] md:rounded-[2rem] p-3 sm:p-4 md:p-6 shadow-lg border border-primary/10 overflow-hidden animate-in fade-in duration-300">
-                        <UserProfileDetail
-                            user={{
-                                ...selectedFellow,
-                                role: "Fellow",
-                                company: selectedFellow.companyName,
-                                location: "Addis Ababa, Ethiopia",
-                                joinedDate: new Date(
-                                    selectedFellow.created_at
-                                ).toLocaleDateString(),
-                            }}
-                            isEditable={false}
-                            onUpdate={fetchData}
-                            onNavigateToProgress={() => setActiveTab("progress")}
-                        />
-                    </div>
-                ) : (
-                    <div className="w-full max-w-full overflow-hidden bg-white rounded-2xl sm:rounded-[1.75rem] md:rounded-[2rem] p-3 sm:p-4 md:p-5 shadow-lg border border-primary/10 animate-in fade-in duration-300">
-                        <div className="flex items-center gap-2.5 sm:gap-3 mb-4 pb-4 border-b border-dashed border-[#E8E4D8]">
-                            <div className="size-9 sm:size-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                <TrendingUp className="size-4 sm:size-5" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-primary/70">
-                                    Progress Dashboard
-                                </p>
-                                <p className="text-sm sm:text-base font-semibold text-foreground leading-tight truncate">
-                                    {selectedFellow.full_name || selectedFellow.name}
-                                </p>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    className="rounded-full"
+                                    onClick={() => {
+                                        setImportRows([]);
+                                        setImportFileName("");
+                                        setImportError(null);
+                                        setImportDialogOpen(true);
+                                    }}
+                                >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Import Fellows
+                                </Button>
+                                <FellowCreationForm onFellowCreated={fetchData} />
                             </div>
                         </div>
 
-                        <FellowProgressTracker
-                            fellowId={selectedFellow.id}
-                            fellowName={selectedFellow.full_name || selectedFellow.name}
-                            userId={selectedFellow.user_id}
-                        />
-                    </div>
-                )}
-            </div>
-        );
-    }
+                        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#E8E4D8] shadow-sm">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">
+                                        {selectedCohortId === "all"
+                                            ? "All Cohorts"
+                                            : selectedCohortId === "unassigned"
+                                            ? "Unassigned Group"
+                                            : "Cohort Roster"}
+                                    </span>
+                                    {activeCohort && (
+                                        <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 rounded-full border-primary/30 bg-primary/5 text-primary">
+                                            {activeCohort.wave_level} Level
+                                        </Badge>
+                                    )}
+                                </div>
+                                <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-foreground leading-tight">
+                                    {selectedCohortId === "all"
+                                        ? "All Fellows Directory"
+                                        : selectedCohortId === "unassigned"
+                                        ? "Unassigned Fellows"
+                                        : activeCohort?.name || "Cohort Fellows"}
+                                </h1>
+                                {activeCohort?.description && (
+                                    <p className="text-xs sm:text-sm text-muted-foreground font-serif italic max-w-xl">
+                                        {activeCohort?.description || ""}
+                                    </p>
+                                )}
+                            </div>
 
-    // ─── Step 1: Cohort Selection Cards View (When no cohort is selected) ───
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleExportToExcel}
+                                    disabled={loading || isExporting || filteredFellows.length === 0}
+                                    className="h-9 rounded-lg border-[#E8E4D8] text-xs sm:text-sm"
+                                >
+                                    {isExporting ? (
+                                        <>
+                                            <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                            Exporting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FileSpreadsheet className="size-3.5 mr-1.5" />
+                                            Export Excel
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border border-[#E8E4D8] shadow-sm">
+                            <div className="relative w-full sm:flex-1 sm:max-w-sm">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground/50 size-4" />
+                                <Input
+                                    placeholder="Search fellows in this view..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 h-10 rounded-lg sm:rounded-xl border-[#E8E4D8] focus:border-primary text-sm"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-2">
+                                <div className="flex items-center justify-center gap-1.5 text-muted-foreground text-xs font-medium px-2">
+                                    <Users className="size-3.5 text-primary/50" />
+                                    <span>
+                                        <span className="text-primary font-semibold">{filteredFellows.length}</span> fellows listed
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="lg:hidden space-y-2 sm:space-y-2.5">
+                        {loading ? (
+                            Array(5)
+                                .fill(0)
+                                .map((_, i) => <FellowCardSkeleton key={i} />)
+                        ) : filteredFellows.length === 0 ? (
+                            <EmptyState searchTerm={searchTerm} />
+                        ) : (
+                            filteredFellows.map((fellow) => (
+                                <FellowCard
+                                    key={fellow.id}
+                                    fellow={fellow}
+                                    onUpdate={fetchData}
+                                    onSelect={() => setSelectedId(fellow.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+
+                    <div className="hidden lg:block overflow-hidden rounded-2xl border border-[#E8E4D8] bg-white shadow-sm">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/20 hover:bg-muted/20 border-b border-[#E8E4D8]">
+                                    <TableHead className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Fellow</TableHead>
+                                    <TableHead className="px-5 py-3 text-left text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Company</TableHead>
+                                    <TableHead className="px-5 py-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Status</TableHead>
+                                    <TableHead className="px-5 py-3 text-right text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {loading ? (
+                                    Array(5)
+                                        .fill(0)
+                                        .map((_, i) => <TableRowSkeleton key={i} />)
+                                ) : filteredFellows.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="p-0">
+                                            <EmptyState searchTerm={searchTerm} />
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    filteredFellows.map((fellow) => (
+                                        <TableRow
+                                            key={fellow.id}
+                                            className="group hover:bg-primary/[0.02] border-b border-[#F3EFE7] last:border-b-0 transition-all duration-200"
+                                            onClick={() => setSelectedId(fellow.id)}
+                                        >
+                                            <TableCell className="px-5 py-4 align-middle">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <Avatar className="size-10 rounded-xl border-2 border-primary/10 bg-gradient-to-br from-primary/10 to-primary/5 shrink-0">
+                                                        <AvatarFallback className="rounded-xl text-primary font-bold text-sm">
+                                                            {(fellow.name || fellow.full_name || "F")
+                                                                .split(" ")
+                                                                .map((n: string) => n[0])
+                                                                .join("")
+                                                                .slice(0, 2)}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-semibold text-sm text-foreground truncate">
+                                                            {fellow.name || fellow.full_name}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                                            {fellow.email}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="px-5 py-4 align-middle">
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                                                    <Building2 className="size-3.5 text-primary/50 shrink-0" />
+                                                    <span className="truncate max-w-[220px]">{fellow.companyName}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="px-5 py-4 align-middle text-center">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "rounded-full px-2.5 py-1 text-[10px] font-bold border",
+                                                        fellow.status === "Active" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                                        fellow.status === "Onboarding" && "bg-blue-50 text-blue-700 border-blue-200",
+                                                        fellow.status === "Paused" && "bg-amber-50 text-amber-700 border-amber-200",
+                                                        fellow.status === "Graduated" && "bg-violet-50 text-violet-700 border-violet-200",
+                                                        fellow.status === "Competency Reset" && "bg-rose-50 text-rose-700 border-rose-200",
+                                                        !(fellow.status === "Active" || fellow.status === "Onboarding" || fellow.status === "Paused" || fellow.status === "Graduated" || fellow.status === "Competency Reset") && "bg-gray-50 text-gray-700 border-gray-200"
+                                                    )}
+                                                >
+                                                    {fellow.status || "Onboarding"}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="px-5 py-4 align-middle">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <FellowActions fellow={fellow} onUpdate={fetchData} onView={() => setSelectedId(fellow.id)} />
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+            )}
+        </>
+    );
 
     if (selectedCohortId === null) {
         return (
@@ -791,6 +1352,19 @@ export default function AdminFellowsTab() {
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => {
+                                setImportRows([]);
+                                setImportFileName("");
+                                setImportError(null);
+                                setImportDialogOpen(true);
+                            }}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Import Fellows
+                        </Button>
                         <FellowCreationForm onFellowCreated={fetchData} />
                     </div>
                 </div>
@@ -890,6 +1464,19 @@ export default function AdminFellowsTab() {
                     </Button>
 
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            className="rounded-full"
+                            onClick={() => {
+                                setImportRows([]);
+                                setImportFileName("");
+                                setImportError(null);
+                                setImportDialogOpen(true);
+                            }}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Import Fellows
+                        </Button>
                         <FellowCreationForm onFellowCreated={fetchData} />
                     </div>
                 </div>
@@ -906,7 +1493,7 @@ export default function AdminFellowsTab() {
                             </span>
                             {activeCohort && (
                                 <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 rounded-full border-primary/30 bg-primary/5 text-primary">
-                                    {activeCohort.wave_level} Level
+                                    {activeCohort?.wave_level || "Standard"} Level
                                 </Badge>
                             )}
                         </div>
@@ -919,7 +1506,7 @@ export default function AdminFellowsTab() {
                         </h1>
                         {activeCohort?.description && (
                             <p className="text-xs sm:text-sm text-muted-foreground font-serif italic max-w-xl">
-                                {activeCohort.description}
+                                {activeCohort?.description || ""}
                             </p>
                         )}
                     </div>
