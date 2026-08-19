@@ -398,6 +398,24 @@ export default function UserProfileDetail({
                             className="hidden"
                         />
 
+                        {isFellow && (
+                            <FellowUpdateForm
+                                fellow={user as any}
+                                onFellowUpdated={() => {
+                                    if (onUpdate) onUpdate();
+                                }}
+                                trigger={
+                                    <Button
+                                        variant="outline"
+                                        className="h-11 sm:h-12 px-5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border-white/20 font-bold text-xs sm:text-sm backdrop-blur-md shadow-lg transition-all"
+                                    >
+                                        <Edit className="size-4 mr-2 text-amber-300" />
+                                        <span>Edit Profile Details</span>
+                                    </Button>
+                                }
+                            />
+                        )}
+
                         <Button
                             onClick={() => certInputRef.current?.click()}
                             disabled={isUploadingCert}
@@ -429,19 +447,19 @@ export default function UserProfileDetail({
                 <div className="mt-5 pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                         <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Qualification</p>
-                        <p className="font-semibold text-white truncate mt-0.5">{user.highest_qualification || "Advanced Degree"}</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.highest_qualification || "Not specified"}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                         <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Leadership Exp.</p>
-                        <p className="font-semibold text-white truncate mt-0.5">{user.leadership_experience_years || 0} Years Exp.</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.leadership_experience_years ?? 0} Years Exp.</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                         <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Availability</p>
-                        <p className="font-semibold text-white truncate mt-0.5">{user.availability || "Full Availability"}</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.availability || "Not specified"}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
                         <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-200/70">Location</p>
-                        <p className="font-semibold text-white truncate mt-0.5">{user.location || "Addis Ababa, ET"}</p>
+                        <p className="font-semibold text-white truncate mt-0.5">{user.location || "Not specified"}</p>
                     </div>
                 </div>
             </div>
@@ -665,24 +683,24 @@ export default function UserProfileDetail({
                             <InfoRow
                                 icon={<MapPin className="size-4" />}
                                 label="Location"
-                                value={user.location || "Addis Ababa, Ethiopia"}
+                                value={user.location || "Not specified"}
                             />
                             <InfoRow
                                 icon={<Globe className="size-4" />}
                                 label="Primary Language"
-                                value={user.primary_language || "English / Amharic"}
+                                value={user.primary_language || "Not specified"}
                             />
                             {isFellow && (
                                 <>
                                     <InfoRow
                                         icon={<Calendar className="size-4" />}
                                         label="Availability"
-                                        value={user.availability || "Full Availability"}
+                                        value={user.availability || "Not specified"}
                                     />
                                     <InfoRow
                                         icon={<Target className="size-4" />}
                                         label="Leadership Track"
-                                        value={user.leadership_track || "General"}
+                                        value={user.leadership_track || "Not specified"}
                                     />
                                 </>
                             )}
@@ -721,7 +739,7 @@ export default function UserProfileDetail({
                                             </h4>
                                         </div>
                                         <p className="font-serif italic text-foreground text-base sm:text-lg font-semibold leading-relaxed pl-1">
-                                            {user.highest_qualification || "Medical Doctor"}
+                                            {user.highest_qualification || "Not specified"}
                                         </p>
                                     </div>
 
@@ -736,7 +754,7 @@ export default function UserProfileDetail({
                                             </h4>
                                         </div>
                                         <p className="font-serif italic text-foreground text-base sm:text-lg font-semibold leading-relaxed pl-1">
-                                            {user.leadership_experience_years || "1"} Years in Leadership Positions
+                                            {user.leadership_experience_years ?? 0} Years in Leadership Positions
                                         </p>
                                     </div>
                                 </div>
@@ -761,15 +779,7 @@ export default function UserProfileDetail({
                                                 </div>
                                             ))
                                         ) : (
-                                            ["Strategic Thinking", "Team Coaching", "Financial Planning"].map((skill, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="px-3.5 py-1.5 bg-[#1B4332]/5 border border-[#1B4332]/20 text-[#1B4332] font-semibold text-xs rounded-xl shadow-2xs hover:bg-[#1B4332] hover:text-white transition-all cursor-default flex items-center gap-1.5"
-                                                >
-                                                    <Sparkles className="size-3 text-amber-500" />
-                                                    <span>{skill}</span>
-                                                </div>
-                                            ))
+                                            <span className="text-xs text-muted-foreground italic pl-1">No key skills specified</span>
                                         )}
                                     </div>
                                 </div>
@@ -778,17 +788,15 @@ export default function UserProfileDetail({
                                 <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#1B4332]/10 via-emerald-50/50 to-transparent border-2 border-[#1B4332]/20 space-y-3 relative overflow-hidden">
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="size-10 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shadow-md shrink-0">
-                                                <Award className="size-5 text-amber-300" />
+                                            <div className="size-10 rounded-xl bg-[#1B4332] text-white flex items-center justify-center shrink-0 shadow-md">
+                                                <Award className="size-5" />
                                             </div>
                                             <div>
-                                                <h4 className="text-sm font-bold text-[#1B4332] flex items-center gap-1.5">
+                                                <h5 className="font-semibold text-sm text-[#1B4332]">
                                                     Official Leadership Certificate
-                                                </h4>
+                                                </h5>
                                                 <p className="text-xs text-muted-foreground font-serif italic">
-                                                    {certificateUrl
-                                                        ? "Issued & Verified by MasterBuilder Leadership Institute"
-                                                        : "No official certificate uploaded yet"}
+                                                    {certificateUrl ? "Certificate uploaded and verified" : "No official certificate uploaded yet"}
                                                 </p>
                                             </div>
                                         </div>
@@ -857,14 +865,7 @@ export default function UserProfileDetail({
                                                 </div>
                                             ))
                                         ) : (
-                                            <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200/80 flex items-start gap-3 text-foreground font-serif italic text-sm sm:text-base">
-                                                <div className="size-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
-                                                    <CheckCircle2 className="size-3.5" />
-                                                </div>
-                                                <span className="break-words leading-relaxed text-[#1B4332]">
-                                                    Enhance executive communication and master operational excellence frameworks.
-                                                </span>
-                                            </div>
+                                            <span className="text-xs text-muted-foreground italic pl-1 block">No leadership development goals specified yet</span>
                                         )}
                                     </div>
                                 </div>

@@ -185,8 +185,10 @@ export const fellowsApi = {
   update: (id: string, data: unknown) => apiClient.patch(`/fellows/${id}`, data),
   delete: (id: string) => apiClient.delete(`/fellows/${id}`),
   generateId: async (companyId: string, prefix: string) => {
+    const safeCompanyId = encodeURIComponent(companyId);
+    const safePrefix = encodeURIComponent(prefix);
     const result = await apiClient.get<string | { fellowId?: string; id?: string }>(
-      `/fellows/generate-id?companyId=${companyId}&prefix=${prefix}`,
+      `/fellows/generate-id?companyId=${safeCompanyId}&prefix=${safePrefix}`,
     );
     if (typeof result === 'string') return result;
     return String(result.fellowId ?? result.id ?? '');

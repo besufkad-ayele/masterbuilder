@@ -3,11 +3,13 @@ import type { Cohort, Company } from "@/types";
 
 export interface ParsedFellowImportRow {
   rowNumber: number;
+  fellow_id?: string;
   full_name: string;
   email: string;
   company_id?: string;
   organization?: string;
   highest_qualification?: string;
+  phone?: string;
   current_role?: string;
   leadership_experience_years?: number;
   learning_goals?: string[];
@@ -65,8 +67,12 @@ const parseListValue = (value: unknown): string[] => {
 const parseNumber = (value: unknown): number | undefined => {
   const text = normalizeString(value);
   if (!text) return undefined;
-  const parsed = Number(text.replace(/[^0-9.\-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : undefined;
+  const match = text.match(/-?\d+(?:\.\d+)?/);
+  if (match) {
+    const num = parseFloat(match[0]);
+    return Number.isFinite(num) ? num : undefined;
+  }
+  return undefined;
 };
 
 const parseCsvLine = (line: string): string[] => {
@@ -119,6 +125,7 @@ const buildRecordFromHeaderMap = (
 ): Partial<ParsedFellowImportRow> => {
   const record: Partial<ParsedFellowImportRow> = {};
 
+  const fellowId = matchHeader(headerMap, ["fellow id", "fellow_id", "id", "fellowid"]);
   const fullName = matchHeader(headerMap, ["full name", "full_name", "name"]);
   const email = matchHeader(headerMap, ["email", "email address"]);
   const companyId = matchHeader(headerMap, ["company id", "company_id", "company", "parent organization"]);
@@ -131,6 +138,7 @@ const buildRecordFromHeaderMap = (
     "qualification",
     "highest educational qulification",
   ]);
+  const phone = matchHeader(headerMap, ["phone", "phone number", "mobile", "phone_number"]);
   const currentRole = matchHeader(headerMap, ["current role", "role", "job title", "position"]);
   const leadershipYears = matchHeader(headerMap, [
     "years of experience in leadership position",
@@ -146,14 +154,18 @@ const buildRecordFromHeaderMap = (
   const primaryLanguage = matchHeader(headerMap, ["primary language", "primary_language"]);
   const leadershipTrack = matchHeader(headerMap, ["leadership track", "leadership_track", "leadership area", "leadership track interest area"]);
   const keySkills = matchHeader(headerMap, ["key skills", "key_skills", "skills"]);
+  const cohortId = matchHeader(headerMap, ["cohort", "cohort id", "cohort_id", "cohort name"]);
   const personalityStyle = matchHeader(headerMap, ["personality style", "personality_style", "working style"]);
   const constraints = matchHeader(headerMap, ["constraints", "constraints travel conflicts"]);
 
+  if (fellowId) record.fellow_id = normalizeCell(row[fellowId]);
   if (fullName) record.full_name = normalizeCell(row[fullName]);
   if (email) record.email = normalizeCell(row[email]);
   if (companyId) record.company_id = normalizeCell(row[companyId]);
+  if (cohortId) record.cohort_id = normalizeCell(row[cohortId]);
   if (org) record.organization = normalizeCell(row[org]);
   if (highestQualification) record.highest_qualification = normalizeCell(row[highestQualification]);
+  if (phone) record.phone = normalizeCell(row[phone]);
   if (currentRole) record.current_role = normalizeCell(row[currentRole]);
   if (leadershipYears) record.leadership_experience_years = parseNumber(normalizeCell(row[leadershipYears]));
   if (learningGoals) record.learning_goals = parseListValue(normalizeCell(row[learningGoals]));
@@ -287,15 +299,16 @@ export const parseFellowImportFile = async (
       company_id: companyId,
       organization: record.organization,
       highest_qualification: record.highest_qualification,
+      phone: record.phone,
       current_role: record.current_role,
       leadership_experience_years: record.leadership_experience_years,
       learning_goals: record.learning_goals,
       gender: record.gender,
       age: record.age,
       primary_language: record.primary_language,
-      availability: record.availability,
+      availability: record.availability || "Flexible",
       cohort_id: cohortId,
-      leadership_track: record.leadership_track,
+      leadership_track: record.leadership_track || "Other",
       key_skills: record.key_skills,
       personality_style: record.personality_style,
       constraints: record.constraints,
@@ -319,15 +332,17 @@ export const buildFellowImportPayload = (
   learning_goals: row.learning_goals || [],
   age: row.age ?? 0,
   company_id: companyId,
+  cohort_id: row.cohort_id || undefined,
   gender: row.gender || "",
   highest_qualification: row.highest_qualification || "",
   current_role: row.current_role || "",
   leadership_experience_years: row.leadership_experience_years ?? 0,
   primary_language: row.primary_language || "",
-  availability: row.availability || "",
-  leadership_track: row.leadership_track || "",
+  availability: row.availability || "Flexible",
+  leadership_track: row.leadership_track || "Other",
   personality_style: row.personality_style || "",
   constraints: row.constraints || "",
+  phone: row.phone || "",
   is_active: true,
-  fellow_id: "",
+  fellow_id: row.fellow_id || "",
 });

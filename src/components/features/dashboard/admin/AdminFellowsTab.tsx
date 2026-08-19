@@ -71,23 +71,18 @@ function FellowActions({
     onView: () => void;
 }) {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [deleteConfirmName, setDeleteConfirmName] = useState("");
     const [isDeleting, setIsDeleting] = useState(false);
 
     const handleDelete = async () => {
-        const name = fellow.full_name || fellow.name;
-        if (deleteConfirmName === name) {
-            setIsDeleting(true);
-            try {
-                await FellowService.deleteFellow(fellow.id, fellow.user_id);
-                setIsDeleteDialogOpen(false);
-                setDeleteConfirmName("");
-                if (onUpdate) onUpdate();
-            } catch (error) {
-                console.error("Error deleting fellow:", error);
-            } finally {
-                setIsDeleting(false);
-            }
+        setIsDeleting(true);
+        try {
+            await FellowService.deleteFellow(fellow.id, fellow.user_id);
+            setIsDeleteDialogOpen(false);
+            if (onUpdate) onUpdate();
+        } catch (error) {
+            console.error("Error deleting fellow:", error);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -146,36 +141,21 @@ function FellowActions({
                     </DialogHeader>
 
                     <div className="space-y-3 sm:space-y-4 py-2">
-                        <div className="p-3 bg-destructive/5 rounded-xl border border-destructive/10">
+                        <div className="p-3.5 bg-destructive/5 rounded-xl border border-destructive/10 space-y-1">
                             <p className="text-xs text-destructive font-bold flex items-center gap-1.5">
                                 <ShieldAlert className="size-3.5 shrink-0" />
-                                Action Required
+                                Permanent Action Warning
                             </p>
-                            <p className="text-[10px] sm:text-xs text-destructive/80 mt-1">
-                                Type{" "}
-                                <span className="font-black">
-                                    &quot;{fellow.full_name || fellow.name}&quot;
-                                </span>{" "}
-                                to confirm.
+                            <p className="text-xs text-foreground/80 font-medium leading-relaxed">
+                                Are you sure you want to delete <span className="font-bold text-destructive">{fellow.full_name || fellow.name}</span>?
                             </p>
                         </div>
-
-                        <Input
-                            type="text"
-                            value={deleteConfirmName}
-                            onChange={(e) => setDeleteConfirmName(e.target.value)}
-                            placeholder="Type name here..."
-                            className="h-10 rounded-lg border-2 border-destructive/20 focus:border-destructive text-sm"
-                        />
 
                         <div className="flex gap-2 pt-1">
                             <Button
                                 variant="outline"
                                 className="flex-1 rounded-full h-9 text-sm font-medium"
-                                onClick={() => {
-                                    setIsDeleteDialogOpen(false);
-                                    setDeleteConfirmName("");
-                                }}
+                                onClick={() => setIsDeleteDialogOpen(false)}
                             >
                                 Cancel
                             </Button>
@@ -183,10 +163,7 @@ function FellowActions({
                                 variant="destructive"
                                 className="flex-1 rounded-full h-9 text-sm font-medium shadow-sm"
                                 onClick={handleDelete}
-                                disabled={
-                                    deleteConfirmName !== (fellow.full_name || fellow.name) ||
-                                    isDeleting
-                                }
+                                disabled={isDeleting}
                             >
                                 {isDeleting ? (
                                     <>
@@ -194,7 +171,7 @@ function FellowActions({
                                         Deleting...
                                     </>
                                 ) : (
-                                    "Delete"
+                                    "Delete Fellow"
                                 )}
                             </Button>
                         </div>
@@ -543,43 +520,36 @@ export default function AdminFellowsTab() {
     const [selectedImportCompanyId, setSelectedImportCompanyId] = useState("");
     const [importFileName, setImportFileName] = useState("");
 
+    const selectedCohortForImport =
+        selectedCohortId && selectedCohortId !== "all" && selectedCohortId !== "unassigned"
+            ? cohorts.find((cohort) => cohort.id === selectedCohortId) || null
+            : null;
+
     const handleDownloadTemplate = () => {
         const headers = [
-            "full_name",
-            "email",
-            "company_id",
-            "organization",
-            "highest_qualification",
-            "current_role",
-            "leadership_experience_years",
-            "learning_goals",
-            "gender",
-            "age",
-            "primary_language",
-            "availability",
-            "leadership_track",
-            "key_skills",
-            "personality_style",
-            "constraints",
+            "Fellow ID",
+            "Full Name",
+            "Email",
+            "Highest Eduactional Qulification",
+            "Phone",
+            "Years of Experience in Leadership Position",
+            "Current Role",
+            "Gender",
+            "Age",
+            "Company",
         ];
 
         const templateRow = [
+            "",
             "Jane Doe",
             "jane@example.com",
-            companies[0]?.id || "COMP_001",
-            "Finance",
-            "MBA",
-            "Senior Finance Manager",
-            "7",
-            "Leadership Growth, Finance Excellence",
+            "Master's Degree",
+            "+251911000000",
+            "5",
+            "Senior Manager",
             "Female",
-            "34",
-            "English",
-            "Weekdays (Morning)",
-            "Financial Strategy",
-            "Budgeting, Strategy",
-            "Analytical and collaborative",
-            "No travel restrictions",
+            "30",
+            companies[0]?.name || "iCapital",
         ];
 
         const csvContent = [headers.join(","), templateRow.join(",")].join("\n");
@@ -625,7 +595,7 @@ export default function AdminFellowsTab() {
             return;
         }
 
-        const companyIdToUse = selectedImportCompanyId || validRows[0]?.company_id;
+        const companyIdToUse = selectedCohortForImport?.company_id || selectedImportCompanyId || validRows[0]?.company_id;
         if (!companyIdToUse) {
             setImportError("Please select a company or include a company column in the spreadsheet.");
             return;
@@ -636,19 +606,27 @@ export default function AdminFellowsTab() {
 
         let createdCount = 0;
         const issues: string[] = [];
+        const forcedCohortId = selectedCohortForImport?.id;
 
         for (const row of validRows) {
-            const finalCompanyId = row.company_id || companyIdToUse;
+            const finalCompanyId = selectedCohortForImport?.company_id || selectedImportCompanyId || row.company_id || companyIdToUse;
             const selectedCompany = companies.find((company) => company.id === finalCompanyId);
 
             try {
                 const payload = buildFellowImportPayload(row, finalCompanyId, selectedCompany?.name);
+                const payloadWithCohort = forcedCohortId
+                    ? { ...payload, cohort_id: forcedCohortId }
+                    : { ...payload, cohort_id: row.cohort_id || payload.cohort_id || undefined };
                 if (!payload.full_name || !payload.email || !payload.company_id) {
                     issues.push(`Row ${row.rowNumber}: missing full name, email, or company.`);
                     continue;
                 }
+                if (!selectedCompany) {
+                    issues.push(`Row ${row.rowNumber}: invalid company id \"${finalCompanyId}\".`);
+                    continue;
+                }
 
-                await FellowService.createFellowWithAuth(row.email, row.full_name, payload);
+                await FellowService.createFellowWithAuth(row.email, row.full_name, payloadWithCohort);
                 createdCount += 1;
             } catch (error: any) {
                 const message = error?.message || "unknown error";
@@ -892,25 +870,39 @@ export default function AdminFellowsTab() {
                                 </div>
                                 <div className="max-h-72 overflow-auto">
                                     <table className="min-w-full text-left text-sm">
-                                        <thead className="bg-muted/20 text-muted-foreground">
+                                        <thead className="bg-muted/20 text-muted-foreground text-xs">
                                             <tr>
                                                 <th className="px-3 py-2 font-medium">Row</th>
-                                                <th className="px-3 py-2 font-medium">Name</th>
+                                                <th className="px-3 py-2 font-medium">Fellow ID</th>
+                                                <th className="px-3 py-2 font-medium">Full Name</th>
                                                 <th className="px-3 py-2 font-medium">Email</th>
+                                                <th className="px-3 py-2 font-medium">Highest Qualification</th>
+                                                <th className="px-3 py-2 font-medium">Phone</th>
+                                                <th className="px-3 py-2 font-medium">Exp (Yrs)</th>
+                                                <th className="px-3 py-2 font-medium">Current Role</th>
+                                                <th className="px-3 py-2 font-medium">Gender</th>
+                                                <th className="px-3 py-2 font-medium">Age</th>
                                                 <th className="px-3 py-2 font-medium">Company</th>
                                                 <th className="px-3 py-2 font-medium">Status</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody className="text-xs">
                                             {importPreviewRows.map((row) => (
                                                 <tr key={`${row.rowNumber}-${row.email}`} className="border-t border-[#E8E4D8]">
                                                     <td className="px-3 py-2">{row.rowNumber}</td>
-                                                    <td className="px-3 py-2">{row.full_name || "—"}</td>
+                                                    <td className="px-3 py-2 font-mono text-[11px]">{row.fellow_id || "Auto"}</td>
+                                                    <td className="px-3 py-2 font-medium">{row.full_name || "—"}</td>
                                                     <td className="px-3 py-2">{row.email || "—"}</td>
+                                                    <td className="px-3 py-2">{row.highest_qualification || "—"}</td>
+                                                    <td className="px-3 py-2">{row.phone || "—"}</td>
+                                                    <td className="px-3 py-2">{row.leadership_experience_years ?? "—"}</td>
+                                                    <td className="px-3 py-2">{row.current_role || "—"}</td>
+                                                    <td className="px-3 py-2">{row.gender || "—"}</td>
+                                                    <td className="px-3 py-2">{row.age || "—"}</td>
                                                     <td className="px-3 py-2">{row.company_id || selectedImportCompanyId || "—"}</td>
                                                     <td className="px-3 py-2">
                                                         {row.errors.length > 0 ? (
-                                                            <span className="text-amber-600">Needs review</span>
+                                                            <span className="text-amber-600 font-semibold">Needs review</span>
                                                         ) : (
                                                             <span className="text-emerald-600">Valid</span>
                                                         )}
@@ -981,12 +973,12 @@ export default function AdminFellowsTab() {
                                     ...selectedFellow,
                                     role: "Fellow",
                                     company: selectedFellow.companyName,
-                                    location: "Addis Ababa, Ethiopia",
+                                    location: selectedFellow.location || undefined,
                                     joinedDate: new Date(
                                         selectedFellow.created_at
                                     ).toLocaleDateString(),
                                 }}
-                                isEditable={false}
+                                isEditable={true}
                                 onUpdate={fetchData}
                                 onNavigateToProgress={() => setActiveTab("progress")}
                             />

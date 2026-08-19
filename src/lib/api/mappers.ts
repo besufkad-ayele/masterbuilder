@@ -345,6 +345,9 @@ export function toApiFellow(data: Partial<FellowProfile> & { password?: string }
     constraints: data.constraints,
     status: data.status,
     isActive: data.is_active,
+    phone: data.phone,
+    location: data.location,
+    bio: data.bio,
   };
 }
 

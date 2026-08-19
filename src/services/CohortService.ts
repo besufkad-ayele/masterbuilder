@@ -90,6 +90,7 @@ export const CohortService = {
                 phaseStates: w.phaseStates,
                 competencyIds: w.competencyIds,
             })),
+            fellowIds: params.fellowIds,
         }) as Record<string, unknown>;
         return String(result.id);
     },
@@ -142,6 +143,8 @@ export const CohortService = {
                 phaseStates: w.phaseStates,
                 competencyIds: w.competencyIds,
             })),
+            fellowIdsToAdd: params.fellowIdsToAdd,
+            fellowIdsToRemove: params.fellowIdsToRemove,
         });
     },
 };

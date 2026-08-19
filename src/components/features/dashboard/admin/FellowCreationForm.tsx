@@ -37,11 +37,12 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
         gender: "",
         age: "",
         primaryLanguage: "",
-        availability: "",
-        leadershipTrack: "",
+        availability: "Flexible",
+        leadershipTrack: "Other",
         personalityStyle: "",
         constraints: "",
         cohortId: "",
+        phone: "",
     });
 
     // Reset companyId if initialCompanyId changes
@@ -131,6 +132,7 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                 leadership_track: formData.leadershipTrack,
                 personality_style: formData.personalityStyle,
                 constraints: formData.constraints,
+                phone: formData.phone,
                 is_active: true
             };
 
@@ -151,11 +153,12 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                 gender: "",
                 age: "",
                 primaryLanguage: "",
-                availability: "",
-                leadershipTrack: "",
+                availability: "Flexible",
+                leadershipTrack: "Other",
                 personalityStyle: "",
                 constraints: "",
                 cohortId: "",
+                phone: "",
             });
         } catch (error: any) {
             console.error("Error creating fellow:", error);
@@ -279,6 +282,15 @@ export default function FellowCreationForm({ onFellowCreated, initialCompanyId, 
                                 value={formData.currentRole}
                                 onChange={e => setFormData({ ...formData, currentRole: e.target.value })}
                                 placeholder="e.g. Senior Operations Manager"
+                            />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Phone Number</Label>
+                            <Input
+                                value={formData.phone}
+                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                placeholder="+251 911 000 000"
                             />
                         </div>
 

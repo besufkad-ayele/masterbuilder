@@ -28,7 +28,7 @@ import {
 
 const fellowUpdateSchema = z.object({
     name: z.string().min(2, "Full name must be at least 2 characters"),
-    // email is read-only in update form – kept for display only, not validated
+    email: z.string().email("Please enter a valid email address"),
     companyId: z.string().min(1, "Company is required"),
     organization: z.string().optional(),
     cohortId: z.string().optional(),
@@ -52,6 +52,9 @@ const fellowUpdateSchema = z.object({
     personalityStyle: z.string().optional(),
     learningGoals: z.string().optional(),
     constraints: z.string().optional(),
+    phone: z.string().optional(),
+    location: z.string().optional(),
+    bio: z.string().optional(),
     status: z.enum(["Onboarding", "Active", "Paused", "Graduated", "Competency Reset"]),
 });
 
@@ -78,7 +81,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
     const [allCohorts, setAllCohorts] = useState<any[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
-    const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FellowUpdateFormData, string>>>({});
+    const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FellowUpdateFormData, string>>>( {});
 
     const [formData, setFormData] = useState({
         name: fellow.full_name || fellow.name || "",
@@ -92,14 +95,45 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
         gender: fellow.gender || "",
         age: fellow.age ? String(fellow.age) : "",
         primaryLanguage: fellow.primary_language || "",
-        availability: fellow.availability || "",
-        leadershipTrack: fellow.leadership_track || "",
+        availability: fellow.availability || "Flexible",
+        leadershipTrack: fellow.leadership_track || "Other",
         keySkills: Array.isArray(fellow.key_skills) ? fellow.key_skills.join(", ") : "",
         personalityStyle: fellow.personality_style || "",
         learningGoals: Array.isArray(fellow.learning_goals) ? fellow.learning_goals.join(", ") : "",
         constraints: fellow.constraints || "",
+        phone: fellow.phone || "",
+        location: fellow.location || "",
+        bio: fellow.bio || "",
         status: (fellow.status as any) || "Active",
     });
+
+    useEffect(() => {
+        if (open && fellow) {
+            setFormData({
+                name: fellow.full_name || fellow.name || "",
+                email: fellow.email || "",
+                companyId: fellow.company_id || "",
+                organization: fellow.organization || "",
+                cohortId: fellow.cohort_id || "",
+                highestQualification: fellow.highest_qualification || "",
+                currentRole: fellow.current_role || "",
+                leadershipExperience: fellow.leadership_experience_years || 0,
+                gender: fellow.gender || "",
+                age: fellow.age ? String(fellow.age) : "",
+                primaryLanguage: fellow.primary_language || "",
+                availability: fellow.availability || "Flexible",
+                leadershipTrack: fellow.leadership_track || "Other",
+                keySkills: Array.isArray(fellow.key_skills) ? fellow.key_skills.join(", ") : "",
+                personalityStyle: fellow.personality_style || "",
+                learningGoals: Array.isArray(fellow.learning_goals) ? fellow.learning_goals.join(", ") : "",
+                constraints: fellow.constraints || "",
+                phone: fellow.phone || "",
+                location: fellow.location || "",
+                bio: fellow.bio || "",
+                status: (fellow.status as any) || "Active",
+            });
+        }
+    }, [open, fellow]);
 
     // ─── Fetch meta ───────────────────────────────────────────────────────────
     useEffect(() => {
@@ -149,6 +183,7 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
         try {
             const updates: Partial<FellowProfile> = {
                 full_name: formData.name,
+                email: formData.email,
                 company_id: formData.companyId,
                 organization: formData.organization,
                 cohort_id: formData.cohortId || undefined,
@@ -168,6 +203,9 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                     ? formData.learningGoals.split(",").map((s) => s.trim()).filter(Boolean)
                     : [],
                 constraints: formData.constraints,
+                phone: formData.phone,
+                location: formData.location,
+                bio: formData.bio,
                 status: formData.status as any,
             };
 
@@ -225,23 +263,16 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                             <FieldError message={fieldErrors.name} />
                         </div>
 
-                        {/* Email – disabled / read-only */}
+                        {/* Email Address */}
                         <div className="grid gap-2">
-                            <Label className="flex items-center gap-2">
-                                Email Address
-                                <span className="flex items-center gap-1 text-[10px] text-muted-foreground font-normal bg-muted px-2 py-0.5 rounded-full">
-                                    <Lock className="w-3 h-3" /> Read-only
-                                </span>
-                            </Label>
+                            <Label required>Email Address</Label>
                             <Input
                                 type="email"
                                 value={formData.email}
-                                disabled
-                                className="bg-muted/50 cursor-not-allowed text-muted-foreground"
+                                onChange={(e) => set("email", e.target.value)}
+                                placeholder="fellow@company.com"
                             />
-                            <p className="text-[10px] text-muted-foreground italic">
-                                Email cannot be changed after account creation.
-                            </p>
+                            <FieldError message={fieldErrors.email} />
                         </div>
 
                         <div className="grid gap-2">
@@ -440,6 +471,35 @@ export default function FellowUpdateForm({ fellow, onFellowUpdated, trigger }: F
                                 </SelectContent>
                             </Select>
                             <FieldError message={fieldErrors.availability} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label>Phone Number</Label>
+                                <Input
+                                    value={formData.phone}
+                                    onChange={(e) => set("phone", e.target.value)}
+                                    placeholder="+251 911 000 000"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Location</Label>
+                                <Input
+                                    value={formData.location}
+                                    onChange={(e) => set("location", e.target.value)}
+                                    placeholder="Addis Ababa, Ethiopia"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Bio / Summary</Label>
+                            <Textarea
+                                value={formData.bio}
+                                onChange={(e) => set("bio", e.target.value)}
+                                placeholder="Brief summary about the fellow..."
+                                className="h-20"
+                            />
                         </div>
                     </div>
 
