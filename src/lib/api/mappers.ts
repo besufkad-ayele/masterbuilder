@@ -323,13 +323,14 @@ export function toApiCohort(data: Partial<Cohort>): Record<string, unknown> {
 }
 
 export function toApiFellow(data: Partial<FellowProfile> & { password?: string }): Record<string, unknown> {
+  const cohortId = data.cohort_id?.trim() || undefined;
   return {
     email: data.email,
     fullName: data.full_name,
     password: data.password,
     fellowId: data.fellow_id,
     companyId: data.company_id,
-    cohortId: data.cohort_id,
+    ...(cohortId && { cohortId }),
     highestQualification: data.highest_qualification,
     currentRole: data.current_role,
     organization: data.organization,
