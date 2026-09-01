@@ -29,7 +29,8 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
 
   const hasAssessmentScore = groundingResult?.score !== undefined && groundingResult?.score !== null;
   const assessmentScore = groundingResult?.score ?? 0;
-  const isPassed = groundingResult?.is_passed ?? false;
+  const isPassed = groundingResult?.is_passed ?? (hasAssessmentScore ? assessmentScore >= 8 : false);
+  const isBelow80 = hasAssessmentScore && assessmentScore < 8;
 
   if (loading) {
     return (
@@ -158,11 +159,11 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
 
               <div className="bg-[#FDFCF6] border-t-2 lg:border-t-0 lg:border-l-2 border-[#E8E4D8] p-6 sm:p-12 flex flex-col justify-center items-center text-center space-y-8 bg-[url('/bg-pattern.png')] bg-opacity-5">
                 <div className="relative">
-                  <div className={`absolute inset-0 ${hasAssessmentScore ? (isPassed ? 'bg-green-500/20' : 'bg-red-500/20') : 'bg-[#C5A059]/20'} blur-2xl rounded-full scale-150`}></div>
-                  <div className={`relative w-32 h-32 rounded-full bg-white border-2 ${hasAssessmentScore ? (isPassed ? 'border-green-500/30' : 'border-red-500/30') : 'border-[#C5A059]/30'} flex flex-col items-center justify-center text-[#1B4332] shadow-xl group-hover:scale-105 transition-transform duration-700`}>
+                  <div className={`absolute inset-0 ${hasAssessmentScore ? (isPassed ? 'bg-green-500/20' : 'bg-amber-500/20') : 'bg-[#C5A059]/20'} blur-2xl rounded-full scale-150`}></div>
+                  <div className={`relative w-32 h-32 rounded-full bg-white border-2 ${hasAssessmentScore ? (isPassed ? 'border-green-500/30' : 'border-amber-500/30') : 'border-[#C5A059]/30'} flex flex-col items-center justify-center text-[#1B4332] shadow-xl group-hover:scale-105 transition-transform duration-700`}>
                     {hasAssessmentScore ? (
                       <>
-                        <span className={`font-black text-3xl font-serif ${isPassed ? 'text-green-600' : 'text-red-500'}`}>{assessmentScore}</span>
+                        <span className={`font-black text-3xl font-serif ${isPassed ? 'text-green-600' : 'text-amber-600'}`}>{assessmentScore}</span>
                         <span className="text-[8px] font-black uppercase tracking-widest text-[#1B4332]/40">out of 10%</span>
                       </>
                     ) : (
@@ -177,12 +178,15 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                 <div className="space-y-2">
                   {hasAssessmentScore ? (
                     <>
-                      <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full ${isPassed ? 'bg-green-500/10 text-green-700' : 'bg-red-500/10 text-red-600'} text-[10px] font-black uppercase tracking-widest`}>
+                      <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full ${isPassed ? 'bg-green-500/10 text-green-700' : 'bg-amber-500/10 text-amber-700'} text-[10px] font-black uppercase tracking-widest`}>
                         <CheckCircle2 className="w-3 h-3" />
-                        {isPassed ? 'Assessment Passed' : 'Assessment Not Passed'}
+                        {isPassed ? 'Assessment Passed' : 'Score Below 80%'}
                       </div>
                       <p className="text-sm text-[#1B4332]/60 italic font-serif">
-                        Your final assessment score: <span className="font-bold not-italic">{assessmentScore}/10</span>
+                        {isPassed
+                          ? <>Your final assessment score: <span className="font-bold not-italic text-green-700">{assessmentScore}/10</span></>
+                          : <>Your score is <span className="font-bold not-italic text-amber-700">{assessmentScore}/10</span> (requires 80% / 8+ out of 10 to pass). You can retake the assessment.</>
+                        }
                       </p>
                     </>
                   ) : (
@@ -197,7 +201,7 @@ export default function FellowGroundingModules({ fellowId }: FellowGroundingModu
                   onClick={() => setIsStarted(true)}
                   className="w-full h-16 bg-[#1B4332] text-white text-xs font-black uppercase tracking-[0.2em] hover:bg-[#C5A059] transition-all duration-500 rounded-2xl shadow-xl flex items-center justify-center gap-3 group/btn"
                 >
-                  {hasAssessmentScore ? 'Review Module' : 'Start Module'} <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
+                  {isPassed ? 'Review Module' : isBelow80 ? 'Take Assessment Again' : 'Start Module'} <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
                 </Button>
               </div>
             </div>

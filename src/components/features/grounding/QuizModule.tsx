@@ -20,8 +20,13 @@ interface QuizQuestion {
 interface QuizModuleProps {
     questions: QuizQuestion[];
     onPass: (score: number) => void;
-    onFail?: () => void;
+    onFail?: (score?: number) => void;
     activePhase: string;
+    passingRatio?: number;
+    title?: string;
+    subtitle?: string;
+    passMessage?: string;
+    failMessage?: string;
 }
 
 export const QuizModule: React.FC<QuizModuleProps> = ({
@@ -29,11 +34,18 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
     onPass,
     onFail,
     activePhase,
+    passingRatio = 0.75,
+    title,
+    subtitle,
+    passMessage,
+    failMessage,
 }) => {
     const [answers, setAnswers] = useState<Record<number, string>>({});
     const [submitted, setSubmitted] = useState(false);
     const [showResultModal, setShowResultModal] = useState(false);
     const [score, setScore] = useState(0);
+
+    const isPassed = questions.length > 0 && (score / questions.length) >= passingRatio;
 
     const handleSubmit = () => {
         const correctCount = questions.filter((q, idx) => {
@@ -60,15 +72,17 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
 
     const handleProceed = () => {
         setShowResultModal(false);
-        const ratio = score / questions.length;
-        if (ratio >= 0.75) {
+        const ratio = questions.length > 0 ? score / questions.length : 0;
+        if (ratio >= passingRatio) {
             onPass(score);
         } else {
             setSubmitted(false);
             setAnswers({});
-            if (onFail) onFail();
+            if (onFail) onFail(score);
         }
     };
+
+    const passThresholdPercentage = Math.round(passingRatio * 100);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -78,10 +92,10 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
                         <CheckSquare className="w-8 h-8 text-[#C5A059]" />
                     </div>
                     <h3 className="text-3xl font-serif italic mb-2 capitalize">
-                        {activePhase} Progress Quiz
+                        {title || `${activePhase} Progress Quiz`}
                     </h3>
                     <p className="text-[#1B4332]/50 text-sm">
-                        Verify your understanding to unlock the next phase (Requires 75% to pass).
+                        {subtitle || `Verify your understanding to unlock the next phase (Requires ${passThresholdPercentage}% to pass).`}
                     </p>
                 </div>
 
@@ -150,9 +164,9 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
                         <div className="text-center space-y-6">
                             <div className={cn(
                                 "w-20 h-20 rounded-full mx-auto flex items-center justify-center shadow-inner",
-                                (score / questions.length) >= 0.75 ? "bg-green-50" : "bg-red-50"
+                                isPassed ? "bg-green-50" : "bg-red-50"
                             )}>
-                                {(score / questions.length) >= 0.75 ? (
+                                {isPassed ? (
                                     <CheckCircle2 className="w-10 h-10 text-green-500" />
                                 ) : (
                                     <AlertCircle className="w-10 h-10 text-red-500" />
@@ -161,18 +175,18 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
 
                             <div className="space-y-2">
                                 <h4 className="text-3xl font-serif italic text-[#1B4332]">
-                                    {(score / questions.length) >= 0.75 ? "Excellent Work!" : "Room to Grow"}
+                                    {isPassed ? "Excellent Work!" : "Assessment Not Passed"}
                                 </h4>
                                 <p className="text-[#1B4332]/60 font-medium">
-                                    You scored <span className="text-[#C5A059] font-bold">{score}</span> out of <span className="text-[#1B4332] font-bold">{questions.length}</span>
+                                    You scored <span className={cn("font-bold", isPassed ? "text-green-600" : "text-red-500")}>{score}</span> out of <span className="text-[#1B4332] font-bold">{questions.length}</span>
                                 </p>
                             </div>
 
                             <div className="p-6 bg-[#FDFCF6] rounded-3xl border border-[#E8E4D8]">
                                 <p className="text-sm leading-relaxed text-[#1B4332]/80 italic">
-                                    {(score / questions.length) >= 0.75
-                                        ? `Congratulations! You've mastered the ${activePhase} phase and are ready to proceed.`
-                                        : `You need at least 75% to pass. Review the ${activePhase} material and try again.`}
+                                    {isPassed
+                                        ? (passMessage || `Congratulations! You've achieved a passing score and unlocked your progress.`)
+                                        : (failMessage || `You need at least ${passThresholdPercentage}% (${Math.ceil(questions.length * passingRatio)} out of ${questions.length}) to pass. You can retake the exam again.`)}
                                 </p>
                             </div>
 
@@ -180,12 +194,12 @@ export const QuizModule: React.FC<QuizModuleProps> = ({
                                 onClick={handleProceed}
                                 className={cn(
                                     "w-full py-5 rounded-2xl font-bold uppercase tracking-[0.2em] transition-all shadow-xl",
-                                    (score / questions.length) >= 0.75
+                                    isPassed
                                         ? "bg-[#1B4332] text-white hover:bg-[#1B4332]/90"
                                         : "bg-[#C5A059] text-white hover:bg-[#C5A059]/90"
                                 )}
                             >
-                                {(score / questions.length) >= 0.75 ? "Enter Next Phase" : "Review Material"}
+                                {isPassed ? "Continue" : "Take Exam Again / Review"}
                             </button>
                         </div>
                     </div>

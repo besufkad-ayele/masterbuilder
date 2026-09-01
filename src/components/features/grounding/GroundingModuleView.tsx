@@ -43,6 +43,7 @@ interface GroundingModuleViewProps {
     userId?: string;
     groundingResults?: any[];
     onBack?: () => void;
+    initialShowAssessment?: boolean;
 }
 
 export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
@@ -51,17 +52,20 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
     userId,
     groundingResults,
     onBack,
+    initialShowAssessment = false,
 }) => {
     const router = useRouter();
     const [isSavingScore, setIsSavingScore] = useState(false);
-    const [viewMode, setViewMode] = useState<"overview" | "detail">("overview");
+    const [viewMode, setViewMode] = useState<"overview" | "detail">(
+        initialShowAssessment ? "detail" : "overview"
+    );
     const [activePart, setActivePart] = useState<"part_one" | "part_two">(
         "part_one"
     );
 
     // Part I state
     const [activeSubFactorIdx, setActiveSubFactorIdx] = useState(0);
-    const [showPartOneQuiz, setShowPartOneQuiz] = useState(false);
+    const [showPartOneQuiz, setShowPartOneQuiz] = useState(initialShowAssessment);
     const [showSubFactorQuiz, setShowSubFactorQuiz] = useState(false);
 
     // Content tab within each sub-factor
@@ -96,14 +100,23 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
             if (result) {
                 const content = result.completed_content || [];
                 const toSet = new Set<string>(content);
-                if (result.score !== undefined) {
-                    toSet.add("part_one_assessment_passed");
+                if (result.score !== undefined && result.score !== null) {
                     setGroundingScore(moduleData.id, "part_one_assessment", result.score);
+                    if (result.score >= 8 || result.is_passed) {
+                        toSet.add("part_one_assessment_passed");
+                    } else {
+                        toSet.delete("part_one_assessment_passed");
+                    }
                 }
                 setGroundingProgress(moduleData.id, Array.from(toSet));
             }
         }
     }, [groundingResults, moduleData.id, setGroundingProgress, setGroundingScore]);
+
+    const finalAssessmentScore = groundingScores[moduleData.id]?.["part_one_assessment"];
+    const hasAttemptedAssessment = finalAssessmentScore !== undefined && finalAssessmentScore !== null;
+    const isAssessmentPassed = completedItems.has("part_one_assessment_passed") || (hasAttemptedAssessment && finalAssessmentScore >= 8);
+    const isAssessmentBelow80 = hasAttemptedAssessment && finalAssessmentScore < 8;
 
     const partOne = moduleData.structure.part_one;
     const partTwo = moduleData.structure.part_two;
@@ -153,9 +166,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
         if (activeSubFactorIdx < partOne.sub_factors.length - 1) {
             setActiveSubFactorIdx((prev) => prev + 1);
         } else {
-            if (!completedItems.has("part_one_assessment_passed")) {
-                setShowPartOneQuiz(true);
-            }
+            setShowPartOneQuiz(true);
         }
     };
 
@@ -163,16 +174,19 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
         if (userId && moduleData.id) {
             setIsSavingScore(true);
             try {
-                const totalQuestions = partOne.completion_assessment.quiz_questions.length;
-                let percentage10 = 10;
+                const totalQuestions = partOne.completion_assessment.quiz_questions.length || 10;
+                let percentage10 = 0;
                 if (score !== undefined) {
                     const accuracy = score / totalQuestions;
                     percentage10 = Number((accuracy * 10).toFixed(1));
                 }
-                await appService.fellow.updateGroundingPerformance(userId, moduleData.id, percentage10, "in_progress");
-                markGroundingCompleted(moduleData.id, "part_one_assessment_passed");
+                const passed = percentage10 >= 8;
+                await appService.fellow.updateGroundingPerformance(userId, moduleData.id, percentage10, passed ? "completed" : "in_progress");
+                if (passed) {
+                    markGroundingCompleted(moduleData.id, "part_one_assessment_passed");
+                    await appService.fellow.trackGroundingContent(userId, moduleData.id, "part_one_assessment_passed");
+                }
                 setGroundingScore(moduleData.id, "part_one_assessment", percentage10);
-                await appService.fellow.trackGroundingContent(userId, moduleData.id, "part_one_assessment_passed");
             } catch (err) {
                 console.error("Error saving grounding score:", err);
             } finally {
@@ -288,9 +302,16 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#C5A059]/20 to-[#C5A059]/5 flex items-center justify-center border border-[#C5A059]/20 group-hover:scale-110 transition-transform">
                                             <Globe className="w-5 h-5 text-[#C5A059]" />
                                         </div>
-                                        <Badge variant="outline" className="text-[10px] font-semibold border-[#C5A059]/30 text-[#C5A059]">
-                                            {partOne.sub_factors.length} Units
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            {hasAttemptedAssessment && (
+                                                <Badge className={cn("text-[10px] font-semibold border-0", isAssessmentPassed ? "bg-green-500/10 text-green-700" : "bg-amber-500/10 text-amber-700")}>
+                                                    {isAssessmentPassed ? `Passed (${finalAssessmentScore}/10)` : `Score: ${finalAssessmentScore}/10`}
+                                                </Badge>
+                                            )}
+                                            <Badge variant="outline" className="text-[10px] font-semibold border-[#C5A059]/30 text-[#C5A059]">
+                                                {partOne.sub_factors.length} Units
+                                            </Badge>
+                                        </div>
                                     </div>
                                     <div className="space-y-2 mb-6">
                                         <p className="text-[10px] font-bold uppercase tracking-widest text-[#C5A059]">Part I</p>
@@ -307,7 +328,13 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                             <span className="text-[10px] text-[#1B4332]/40 font-medium">{completedSubFactors}/{totalSubFactors}</span>
                                         </div>
                                         <div className="flex items-center gap-1.5 text-xs font-semibold text-[#1B4332] group-hover:text-[#C5A059] transition-colors">
-                                            Start
+                                            {isAssessmentPassed
+                                                ? `Passed (${finalAssessmentScore ?? 10}/10)`
+                                                : isAssessmentBelow80
+                                                ? `Take Assessment (${finalAssessmentScore}/10)`
+                                                : isAllContentRead
+                                                ? "Take Assessment"
+                                                : "Start"}
                                             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                                         </div>
                                     </div>
@@ -394,6 +421,11 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                                 </div>
                                             ) : (
                                                 <QuizModule
+                                                    title={partOne.completion_assessment.type || "Final Assessment"}
+                                                    subtitle={partOne.completion_assessment.description || "Pass with at least 80% (8 out of 10) to complete Grounding Module."}
+                                                    passingRatio={0.8}
+                                                    passMessage="Congratulations! You scored 80% or higher and passed the Grounding Assessment."
+                                                    failMessage="You need at least 80% (8 out of 10) to pass. You can retake the assessment again."
                                                     questions={partOne.completion_assessment.quiz_questions.map((q) => ({
                                                         question: q.question,
                                                         options: Object.values(q.options).filter((o) => o !== ""),
@@ -401,8 +433,8 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                                         explanation: "",
                                                     }))}
                                                     onPass={handleQuizPass}
-                                                    onFail={() => {}}
-                                                    activePhase="believe"
+                                                    onFail={handleQuizPass}
+                                                    activePhase="grounding"
                                                 />
                                             )}
                                         </div>
@@ -689,7 +721,13 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                                         <div>
                                                             <p className="text-[10px] font-bold uppercase tracking-wider text-[#C5A059]">Next Step</p>
                                                             <p className="text-xs sm:text-sm text-[#1B4332]/50">
-                                                                {isUnitQuizPassed
+                                                                {isAllContentRead
+                                                                    ? isAssessmentPassed
+                                                                        ? `All Units Completed — Assessment Passed (${finalAssessmentScore ?? 10}/10)`
+                                                                        : isAssessmentBelow80
+                                                                        ? `Score: ${finalAssessmentScore}/10 (Below 80%). Take the assessment again to achieve 80%+ mastery.`
+                                                                        : "All units completed! Take the final assessment to complete Part I."
+                                                                    : isUnitQuizPassed
                                                                     ? "Ready to proceed to the next unit"
                                                                     : isCurrentUnitContentDone
                                                                     ? "Take the quiz to unlock the next unit"
@@ -731,10 +769,12 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                                                                 onClick={handleNextSubFactor}
                                                                 className="px-5 py-5 bg-[#1B4332] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#2d6b4f] transition-all rounded-xl shadow-md flex items-center gap-2 group/btn flex-1 sm:flex-initial justify-center"
                                                             >
-                                                                {activeSubFactorIdx === partOne.sub_factors.length - 1
-                                                                    ? completedItems.has("part_one_assessment_passed")
+                                                                {activeSubFactorIdx === partOne.sub_factors.length - 1 || isAllContentRead
+                                                                    ? isAssessmentPassed
                                                                         ? "All Complete"
-                                                                        : "Final Assessment"
+                                                                        : isAssessmentBelow80
+                                                                        ? "Take Assessment Again"
+                                                                        : "All Units Completed — Take Assessment"
                                                                     : "Next Unit"}
                                                                 <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1 transition-transform" />
                                                             </Button>
@@ -860,7 +900,7 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                 <button
                     disabled={!isAllContentRead}
                     onClick={() => {
-                        if (!completedItems.has("part_one_assessment_passed")) {
+                        if (isAllContentRead) {
                             setShowPartOneQuiz(true);
                             if (isMobile) setSidebarOpen(false);
                         }
@@ -869,35 +909,48 @@ export const GroundingModuleView: React.FC<GroundingModuleViewProps> = ({
                         "w-full text-left p-3 rounded-xl transition-all duration-200 flex items-center gap-3 border-2",
                         showPartOneQuiz
                             ? "bg-[#1B4332] text-white border-[#C5A059] shadow-lg"
-                            : completedItems.has("part_one_assessment_passed")
-                            ? "bg-green-50 border-green-200"
+                            : isAssessmentPassed
+                            ? "bg-green-50 border-green-200 hover:bg-green-100/50"
+                            : isAssessmentBelow80
+                            ? "bg-amber-50/80 border-amber-300 hover:bg-amber-100/60 shadow-sm"
                             : isAllContentRead
-                            ? "bg-[#C5A059]/5 border-[#C5A059]/30 hover:bg-[#C5A059]/10"
+                            ? "bg-[#C5A059]/10 border-[#C5A059]/40 hover:bg-[#C5A059]/20"
                             : "opacity-40 cursor-not-allowed border-dashed border-[#E8E4D8]"
                     )}
                 >
                     <div
                         className={cn(
                             "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
-                            completedItems.has("part_one_assessment_passed")
+                            isAssessmentPassed
                                 ? "bg-green-500 text-white"
                                 : showPartOneQuiz
                                 ? "bg-[#C5A059] text-[#1B4332]"
-                                : "bg-[#E8E4D8]/60"
+                                : isAssessmentBelow80
+                                ? "bg-amber-500 text-white"
+                                : "bg-[#E8E4D8]/60 text-[#1B4332]/40"
                         )}
                     >
-                        <ClipboardCheck className="w-3.5 h-3.5" />
+                        {isAssessmentPassed ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                            <ClipboardCheck className="w-3.5 h-3.5" />
+                        )}
                     </div>
 
                     <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold">Final Assessment</p>
-                        {completedItems.has("part_one_assessment_passed") ? (
+                        {isAssessmentPassed ? (
                             <p className="text-[10px] text-green-600 font-semibold mt-0.5">
-                                Passed — {groundingScores[moduleData.id]?.["part_one_assessment"] ?? "--"} / 10
+                                Passed — {finalAssessmentScore ?? 10} / 10
+                            </p>
+                        ) : isAssessmentBelow80 ? (
+                            <p className="text-[10px] text-amber-700 font-semibold mt-0.5 flex items-center justify-between">
+                                <span>Score: {finalAssessmentScore} / 10</span>
+                                <span className="font-bold underline">Take Assessment</span>
                             </p>
                         ) : (
-                            <p className="text-[9px] text-[#1B4332]/30 font-medium mt-0.5">
-                                {isAllContentRead ? "Ready to take" : "Complete all units first"}
+                            <p className="text-[9px] text-[#1B4332]/50 font-medium mt-0.5">
+                                {isAllContentRead ? "All Units Completed — Take Assessment" : "Complete all units first"}
                             </p>
                         )}
                     </div>
